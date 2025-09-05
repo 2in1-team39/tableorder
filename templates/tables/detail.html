@@ -54,7 +54,14 @@
                                             <span class="text-muted">({{ item.options|join:", " }})</span>
                                         {% endif %}
                                     </div>
-                                    <span>{{ item.get_total_price|floatformat:0 }}원</span>
+                                    <div>
+                                        <span class="me-2">{{ item.get_total_price|floatformat:0 }}원</span>
+                                        {% if item.status != 'ready' %}
+                                        <button class="btn btn-sm btn-outline-danger" onclick="cancelOrderItem({{ item.id }})" title="취소">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 {% endfor %}
                             </div>

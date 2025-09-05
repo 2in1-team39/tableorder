@@ -364,5 +364,33 @@ function cycleTableStatus(tableId, currentStatus) {
     const nextStatus = statusCycle[currentStatus] || 'empty';
     updateStatus(tableId, nextStatus);
 }
+
+function cancelOrderItem(itemId) {
+    if (!confirm('이 메뉴를 취소하시겠습니까?')) {
+        return;
+    }
+    
+    fetch(`/orders/item/cancel/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('메뉴가 취소되었습니다.');
+            // 모달 닫고 다시 열기
+            tableModal.hide();
+            setTimeout(() => showTableDetail(currentTableId), 300);
+        } else {
+            alert('취소 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('취소 처리 중 오류가 발생했습니다.');
+    });
+}
 </script>
 {% endblock %}

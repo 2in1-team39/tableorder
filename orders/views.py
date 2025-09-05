@@ -105,6 +105,38 @@ def update_menu_item_status(request, item_id):
     
     return JsonResponse({'success': False, 'error': 'Invalid status'})
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def cancel_order_item(request, item_id):
+    order_item = get_object_or_404(OrderItem, id=item_id)
+    
+    # 이미 조리 완료된 메뉴는 취소할 수 없음
+    if order_item.status == 'ready':
+        return JsonResponse({'success': False, 'error': 'Cannot cancel ready item'})
+    
+    order = order_item.order
+    
+    # 주문 항목 삭제
+    order_item.delete()
+    
+    # 주문의 총 금액 재계산
+    remaining_items = order.items.all()
+    if remaining_items.exists():
+        total_amount = sum(item.get_total_price() for item in remaining_items)
+        order.total_amount = total_amount
+        order.save()
+    else:
+        # 모든 항목이 취소되면 주문 자체를 삭제
+        table = order.table
+        order.delete()
+        
+        # 테이블에 다른 주문이 없으면 상태를 빈 테이블로 변경
+        if not table.orders.exclude(status='paid').exists():
+            table.status = 'empty'
+            table.save()
+    
+    return JsonResponse({'success': True})
+
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'orders/detail.html', {'order': order})

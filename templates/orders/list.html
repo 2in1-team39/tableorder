@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}주방 주문 관리 - 한가리 식당{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-fire"></i> 주방 주문 관리</h2>
+    <div>
+        <span class="badge bg-primary me-2">조리 중</span>
+        <span class="badge bg-success">조리 완료</span>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% for order in orders %}
+        <div class="card mb-3 order-card" data-order-id="{{ order.id }}">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="text-center">
+                            <h5 class="mb-1">테이블 {{ order.table.number }}번</h5>
+                            <small class="text-muted">{{ order.created_at|date:"H:i" }}</small>
+                            <div class="mt-2">
+                                <small class="text-muted">{{ order.created_at|timesince }} 전</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-10">
+                        {% for item in order.items.all %}
+                            {% if item.menu.requires_cooking %}
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded" data-item-id="{{ item.id }}">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1 menu-name {% if item.status == 'ready' %}text-decoration-line-through text-muted{% endif %}">{{ item.menu.name }} x {{ item.quantity }}</h6>
+                                    {% if item.options %}
+                                    <div class="small text-info">옵션: {{ item.options|join:", " }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="text-end">
+                                    <span class="badge fs-6 menu-status-badge {% if item.status == 'ready' %}bg-success{% else %}bg-primary{% endif %}" 
+                                          data-item-id="{{ item.id }}"
+                                          onclick="toggleMenuStatus({{ item.id }})"
+                                          style="cursor: pointer; padding: 8px 12px;"
+                                          title="클릭하여 상태 변경">
+                                        {% if item.status == 'ready' %}
+                                            <i class="fas fa-check"></i> 완료
+                                        {% else %}
+                                            <i class="fas fa-fire"></i> 조리중
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">현재 주문이 없습니다.</h5>
+            <p class="text-muted">새로운 주문이 들어오면 여기에 표시됩니다.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleMenuStatus(itemId) {
+    const badge = document.querySelector(`[data-item-id="${itemId}"]`);
+    const currentText = badge.textContent.trim();
+    const isCooking = currentText.includes('조리중');
+    const newStatus = isCooking ? 'ready' : 'cooking';
+    
+    console.log('Current status:', currentText, 'Is cooking:', isCooking, 'New status:', newStatus);
+    
+    fetch(`/orders/item/update/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 배지 상태 업데이트
+            badge.style.cursor = 'pointer';
+            badge.style.padding = '8px 12px';
+            badge.title = '클릭하여 상태 변경';
+            
+            // 메뉴명 요소 찾기
+            const menuNameElement = badge.closest('[data-item-id]').querySelector('.menu-name');
+            
+            if (newStatus === 'cooking') {
+                badge.className = 'badge fs-6 menu-status-badge bg-primary';
+                badge.innerHTML = '<i class="fas fa-fire"></i> 조리중';
+                // line-through 제거
+                menuNameElement.classList.remove('text-decoration-line-through', 'text-muted');
+            } else {
+                badge.className = 'badge fs-6 menu-status-badge bg-success';
+                badge.innerHTML = '<i class="fas fa-check"></i> 완료';
+                // line-through 추가
+                menuNameElement.classList.add('text-decoration-line-through', 'text-muted');
+            }
+        } else {
+            alert('상태 변경에 실패했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('상태 변경 중 오류가 발생했습니다.');
+    });
+}
+
+let previousOrderCount = document.querySelectorAll('.order-card').length;
+
+// 페이지 로드 시 스크롤을 맨 아래로
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+});
+
+// 5초마다 자동 새로고침
+setInterval(function() {
+    // 새로고침 전 주문 수를 localStorage에 저장
+    localStorage.setItem('previousOrderCount', document.querySelectorAll('.order-card').length);
+    location.reload();
+}, 5000);
+
+// 페이지 로드 후 새 주문 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const storedCount = localStorage.getItem('previousOrderCount');
+    const currentCount = document.querySelectorAll('.order-card').length;
+    
+    if (storedCount && parseInt(storedCount) < currentCount) {
+        // 새 주문이 있으면 스크롤 맨 아래로
+        setTimeout(function() {
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 200);
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+
+{% block title %}테이블 현황 - 항아리 손칼국수{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-table"></i> 테이블 현황</h2>
+    <div>
+        <span class="badge bg-secondary me-2">빈 테이블</span>
+        <span class="badge bg-warning me-2">주문 완료</span>
+        <span class="badge bg-danger me-2">조리 완료</span>
+        <span class="badge bg-info">결제 완료</span>
+    </div>
+</div>
+
+<div class="row" id="tables-container">
+    {% for table in tables %}
+    <div class="col-md-3 col-sm-4 col-6">
+        <div class="table-card table-{{ table.status }}" 
+             data-table-id="{{ table.id }}" 
+             onclick="showTableDetail({{ table.id }})">
+            <h4>테이블 {{ table.number }}</h4>
+            <p class="mb-1">
+                <i class="fas fa-chair"></i> {{ table.seats }}석
+            </p>
+            <p class="mb-0">
+                <span class="badge {% if table.status == 'empty' %}bg-secondary{% elif table.status == 'ordered' %}bg-warning{% elif table.status == 'cooking' %}bg-danger{% elif table.status == 'paid' %}bg-info{% else %}bg-primary{% endif %} status-badge" 
+                      data-table-id="{{ table.id }}"
+                      onclick="event.stopPropagation(); cycleTableStatus({{ table.id }}, '{{ table.status }}')"
+                      style="cursor: pointer; user-select: none;"
+                      title="클릭하여 상태 변경">
+                    {{ table.get_status_display }}
+                </span>
+            </p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 테이블 상세 모달 -->
+<div class="modal fade" id="tableModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">테이블 상세 정보</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modal-content">
+                <!-- 동적으로 로드됨 -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let tableModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    tableModal = new bootstrap.Modal(document.getElementById('tableModal'));
+    
+    // 2초마다 테이블 상태 업데이트
+    setInterval(updateTableStatus, 2000);
+});
+
+function updateTableStatus() {
+    fetch('/api/status/')
+        .then(response => response.json())
+        .then(tables => {
+            tables.forEach(table => {
+                const tableCard = document.querySelector(`.table-card[data-table-id="${table.id}"]`);
+                const statusBadge = document.querySelector(`.status-badge[data-table-id="${table.id}"]`);
+                
+                if (tableCard) {
+                    // 기존 상태 클래스 제거
+                    tableCard.className = tableCard.className.replace(/table-(empty|ordered|cooking|paid)/g, '');
+                    // 새 상태 클래스 추가
+                    tableCard.classList.add(`table-${table.status}`);
+                }
+                
+                if (statusBadge) {
+                    // 상태 텍스트 및 색상 업데이트
+                    const statusConfig = {
+                        'empty': { text: '빈 테이블', class: 'bg-secondary' },
+                        'ordered': { text: '주문 완료', class: 'bg-warning' },
+                        'cooking': { text: '조리 완료', class: 'bg-danger' },
+                        'paid': { text: '결제 완료', class: 'bg-info' }
+                    };
+                    
+                    const config = statusConfig[table.status] || { text: table.status, class: 'bg-primary' };
+                    
+                    // 기존 배경 클래스 제거
+                    statusBadge.className = statusBadge.className.replace(/bg-(primary|secondary|warning|danger|info|success)/g, '');
+                    
+                    // 새 텍스트와 색상 적용
+                    statusBadge.textContent = config.text;
+                    statusBadge.classList.add(config.class);
+                    statusBadge.setAttribute('onclick', `event.stopPropagation(); cycleTableStatus(${table.id}, '${table.status}')`);
+                }
+            });
+        })
+        .catch(error => console.error('Error updating table status:', error));
+}
+
+function showTableDetail(tableId) {
+    currentTableId = tableId;
+    fetch(`/detail/${tableId}/`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('modal-content').innerHTML = html;
+            tableModal.show();
+            
+            // 새 주문 탭이 활성화될 때 메뉴 로드
+            document.getElementById('order-tab').addEventListener('click', function() {
+                loadMenusForModal(tableId);
+            });
+        })
+        .catch(error => console.error('Error loading table detail:', error));
+}
+
+let modalCart = {};
+let modalMenus = {};
+
+function loadMenusForModal(tableId) {
+    // 메뉴 데이터 직접 설정
+    const menus = [
+        { id: 1, name: '해물칼국수', price: 10000, description: '신선한 해물이 들어간 칼국수', options: ['고추빼고', '면 많이'], min_order: 1 },
+        { id: 2, name: '비빔칼국수', price: 8000, description: '매콤달콤한 비빔칼국수', options: [], min_order: 2 },
+        { id: 3, name: '공기밥', price: 1000, description: '갓 지은 따뜻한 밥', options: [], min_order: 1 },
+        { id: 4, name: '도토리묵', price: 8000, description: '쪽깃한 도토리묵', options: [], min_order: 1 },
+        { id: 5, name: '편육', price: 12000, description: '부드러운 수육', options: [], min_order: 1 }
+    ];
+    
+    let menuHtml = '';
+    modalMenus = {};
+    
+    menus.forEach(menu => {
+        modalMenus[menu.id] = menu;
+        
+        let optionsHtml = '';
+        if (menu.options.length > 0) {
+            optionsHtml = `
+                <div class="mt-2">
+                    <small class="text-muted">옵션:</small>
+                    ${menu.options.map((option, index) => `
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" value="${option}" id="opt${menu.id}_${index}">
+                            <label class="form-check-label small" for="opt${menu.id}_${index}">${option}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        menuHtml += `
+            <div class="menu-item mb-3 p-3 border rounded" data-menu-id="${menu.id}">
+                <div class="row align-items-center">
+                    <div class="col-8">
+                        <h6>${menu.name}</h6>
+                        <p class="small text-muted">${menu.description}</p>
+                        <div class="h6 text-primary">${menu.price.toLocaleString()}원</div>
+                        ${menu.min_order > 1 ? `<div class="badge bg-warning text-dark mb-2">${menu.min_order}인분부터 주문 가능</div>` : ''}
+                        ${optionsHtml}
+                    </div>
+                    <div class="col-4 text-end">
+                        <div class="d-flex align-items-center justify-content-end gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="changeModalQuantity(${menu.id}, -1)">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <span class="fw-bold" id="modal_qty_${menu.id}">0</span>
+                            <button class="btn btn-outline-primary btn-sm" onclick="changeModalQuantity(${menu.id}, 1)">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    document.getElementById('menu-list').innerHTML = menuHtml;
+    modalCart = {};
+    updateModalCart();
+}
+
+function changeModalQuantity(menuId, change) {
+    if (!modalCart[menuId]) {
+        modalCart[menuId] = { quantity: 0, options: [] };
+    }
+    
+    modalCart[menuId].quantity = Math.max(0, modalCart[menuId].quantity + change);
+    
+    if (modalCart[menuId].quantity > 0 && modalCart[menuId].quantity < modalMenus[menuId].min_order) {
+        modalCart[menuId].quantity = modalMenus[menuId].min_order;
+    }
+    
+    document.getElementById(`modal_qty_${menuId}`).textContent = modalCart[menuId].quantity;
+    updateModalCart();
+}
+
+function updateModalCart() {
+    let totalAmount = 0;
+    let orderItemsHtml = '';
+    let hasItems = false;
+    
+    for (let menuId in modalCart) {
+        if (modalCart[menuId].quantity > 0) {
+            hasItems = true;
+            const options = [];
+            const checkboxes = document.querySelectorAll(`[data-menu-id="${menuId}"] input[type="checkbox"]:checked`);
+            checkboxes.forEach(cb => options.push(cb.value));
+            modalCart[menuId].options = options;
+            
+            const itemTotal = modalCart[menuId].quantity * modalMenus[menuId].price;
+            totalAmount += itemTotal;
+            
+            orderItemsHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <div class="fw-bold">${modalMenus[menuId].name}</div>
+                        <small class="text-muted">${modalCart[menuId].quantity}개 × ${modalMenus[menuId].price.toLocaleString()}원</small>
+                        ${options.length > 0 ? `<br><small class="text-info">${options.join(', ')}</small>` : ''}
+                    </div>
+                    <div class="text-end">
+                        <div>${itemTotal.toLocaleString()}원</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    if (!hasItems) {
+        orderItemsHtml = '<p class="text-muted text-center">선택된 메뉴가 없습니다.</p>';
+    }
+    
+    document.getElementById('modal-order-items').innerHTML = orderItemsHtml;
+    document.getElementById('modal-total-amount').textContent = totalAmount.toLocaleString() + '원';
+    document.getElementById('modal-submit-btn').disabled = !hasItems;
+}
+
+let currentTableId = null;
+
+function submitModalOrder() {
+    const orderItems = [];
+    
+    for (let menuId in modalCart) {
+        if (modalCart[menuId].quantity > 0) {
+            orderItems.push({
+                menu_id: parseInt(menuId),
+                quantity: modalCart[menuId].quantity,
+                options: modalCart[menuId].options
+            });
+        }
+    }
+    
+    if (orderItems.length === 0) {
+        alert('주문할 메뉴를 선택해주세요.');
+        return;
+    }
+    
+    if (!currentTableId) {
+        alert('테이블 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    fetch(`/orders/save/${currentTableId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items: orderItems })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('주문이 완료되었습니다!');
+            tableModal.hide();
+            updateTableStatus();
+        } else {
+            alert('주문 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('주문 처리 중 오류가 발생했습니다.');
+    });
+}
+
+// 체크박스 변경 시 장바구니 업데이트
+document.addEventListener('change', function(e) {
+    if (e.target.type === 'checkbox' && e.target.closest('#order')) {
+        updateModalCart();
+    }
+});
+
+// 결제 처리 함수
+function processPayment(paymentMethod) {
+    if (!currentTableId) {
+        alert('테이블 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const paymentText = paymentMethod === 'card' ? '카드' : '현금';
+    
+    if (!confirm(`${paymentText} 결제를 진행하시겠습니까?`)) {
+        return;
+    }
+    
+    fetch(`/payment/${currentTableId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({payment_method: paymentText})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`${data.message}\n총 금액: ${data.total_amount.toLocaleString()}원`);
+            tableModal.hide();
+            updateTableStatus();
+        } else {
+            alert('결제 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('결제 처리 중 오류가 발생했습니다.');
+    });
+}
+
+function updateStatus(tableId, newStatus) {
+    fetch(`/api/update/${tableId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateTableStatus();
+            if (typeof tableModal !== 'undefined' && tableModal._isShown) {
+                tableModal.hide();
+            }
+        } else {
+            alert('상태 변경에 실패했습니다.');
+        }
+    })
+    .catch(error => console.error('Error updating status:', error));
+}
+
+function cycleTableStatus(tableId, currentStatus) {
+    // 상태 순환: empty -> ordered -> cooking -> paid -> empty
+    const statusCycle = {
+        'empty': 'ordered',
+        'ordered': 'cooking', 
+        'cooking': 'paid',
+        'paid': 'empty'
+    };
+    
+    const nextStatus = statusCycle[currentStatus] || 'empty';
+    updateStatus(tableId, nextStatus);
+}
+</script>
+{% endblock %}

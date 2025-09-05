@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}새 주문 - 테이블 {{ table.number }}번{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-plus-circle"></i> 새 주문 - 테이블 {{ table.number }}번</h2>
+    <a href="{% url 'tables:dashboard' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> 돌아가기
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <h5>메뉴 선택</h5>
+        {% for menu in menus %}
+        <div class="card mb-3 menu-item" data-menu-id="{{ menu.id }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="card-title">{{ menu.name }}</h6>
+                        <p class="card-text small text-muted">{{ menu.description }}</p>
+                        <div class="h6 text-primary">{{ menu.price|floatformat:0 }}원</div>
+                        
+                        {% if menu.min_order > 1 %}
+                        <div class="badge bg-warning text-dark mb-2">
+                            {{ menu.min_order }}인분부터 주문 가능
+                        </div>
+                        {% endif %}
+                        
+                        {% if menu.options %}
+                        <div class="mt-2">
+                            <small class="text-muted">옵션:</small>
+                            {% for option in menu.options %}
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" 
+                                       id="option_{{ menu.id }}_{{ forloop.counter }}" 
+                                       value="{{ option }}">
+                                <label class="form-check-label small" for="option_{{ menu.id }}_{{ forloop.counter }}">
+                                    {{ option }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4 text-end">
+                        <div class="d-flex align-items-center justify-content-end gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="changeQuantity({{ menu.id }}, -1)">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <span class="fw-bold mx-2" id="qty_{{ menu.id }}">0</span>
+                            <button class="btn btn-outline-primary btn-sm" onclick="changeQuantity({{ menu.id }}, 1)">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card sticky-top">
+            <div class="card-header">
+                <h6><i class="fas fa-shopping-cart"></i> 주문 내역</h6>
+            </div>
+            <div class="card-body">
+                <div id="order-items">
+                    <p class="text-muted text-center">선택된 메뉴가 없습니다.</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <strong>총 금액:</strong>
+                    <strong class="text-primary" id="total-amount">0원</strong>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-primary w-100" onclick="submitOrder()" id="submit-btn" disabled>
+                    <i class="fas fa-check"></i> 주문 완료
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cart = {};
+let menus = {
+    {% for menu in menus %}
+    {{ menu.id }}: {
+        name: '{{ menu.name }}',
+        price: {{ menu.price }},
+        min_order: {{ menu.min_order }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+};
+
+function changeQuantity(menuId, change) {
+    if (!cart[menuId]) {
+        cart[menuId] = { quantity: 0, options: [] };
+    }
+    
+    cart[menuId].quantity = Math.max(0, cart[menuId].quantity + change);
+    
+    if (cart[menuId].quantity > 0 && cart[menuId].quantity < menus[menuId].min_order) {
+        cart[menuId].quantity = menus[menuId].min_order;
+    }
+    
+    document.getElementById(`qty_${menuId}`).textContent = cart[menuId].quantity;
+    updateCart();
+}
+
+function updateCart() {
+    let totalAmount = 0;
+    let orderItemsHtml = '';
+    let hasItems = false;
+    
+    for (let menuId in cart) {
+        if (cart[menuId].quantity > 0) {
+            hasItems = true;
+            const options = [];
+            const checkboxes = document.querySelectorAll(`[data-menu-id="${menuId}"] input[type="checkbox"]:checked`);
+            checkboxes.forEach(cb => options.push(cb.value));
+            cart[menuId].options = options;
+            
+            const itemTotal = cart[menuId].quantity * menus[menuId].price;
+            totalAmount += itemTotal;
+            
+            orderItemsHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <div class="fw-bold">${menus[menuId].name}</div>
+                        <small class="text-muted">${cart[menuId].quantity}개 × ${menus[menuId].price.toLocaleString()}원</small>
+                        ${options.length > 0 ? `<br><small class="text-info">${options.join(', ')}</small>` : ''}
+                    </div>
+                    <div class="text-end">
+                        <div>${itemTotal.toLocaleString()}원</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    if (!hasItems) {
+        orderItemsHtml = '<p class="text-muted text-center">선택된 메뉴가 없습니다.</p>';
+    }
+    
+    document.getElementById('order-items').innerHTML = orderItemsHtml;
+    document.getElementById('total-amount').textContent = totalAmount.toLocaleString() + '원';
+    document.getElementById('submit-btn').disabled = !hasItems;
+}
+
+function submitOrder() {
+    const orderItems = [];
+    
+    for (let menuId in cart) {
+        if (cart[menuId].quantity > 0) {
+            orderItems.push({
+                menu_id: parseInt(menuId),
+                quantity: cart[menuId].quantity,
+                options: cart[menuId].options
+            });
+        }
+    }
+    
+    if (orderItems.length === 0) {
+        alert('주문할 메뉴를 선택해주세요.');
+        return;
+    }
+    
+    fetch('/orders/save/{{ table.id }}/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ items: orderItems })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('주문이 완료되었습니다!');
+            window.location.href = '{% url "tables:dashboard" %}';
+        } else {
+            alert('주문 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('주문 처리 중 오류가 발생했습니다.');
+    });
+}
+
+document.addEventListener('change', function(e) {
+    if (e.target.type === 'checkbox') {
+        updateCart();
+    }
+});
+</script>
+{% endblock %}

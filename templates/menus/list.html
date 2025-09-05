@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}메뉴 관리 - 항아리 손칼국수{% endblock %}
+
+{% block content %}
+<h2><i class="fas fa-utensils"></i> 메뉴 관리</h2>
+
+<div class="row">
+    {% for menu in menus %}
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ menu.name }}</h5>
+                <p class="card-text">{{ menu.description }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="h5 text-primary">{{ menu.price|floatformat:0 }}원</span>
+                    {% if menu.min_order > 1 %}
+                        <small class="text-muted">{{ menu.min_order }}인분부터</small>
+                    {% endif %}
+                </div>
+                {% if menu.options %}
+                <div class="mt-2">
+                    <small class="text-muted">옵션: {{ menu.options|join:", " }}</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <p class="text-center text-muted">등록된 메뉴가 없습니다.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

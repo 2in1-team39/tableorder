@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주문하기 - 테이블 {{ table.number }}번</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        html, body {
+            background-color: white;
+        }
+        body {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .container-fluid {
+            max-width: 480px;
+            padding: 0;
+        }
+        .menu-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            background: white;
+        }
+        .menu-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .quantity-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+        }
+        .cart-summary {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            border-top: 2px solid #007bff;
+            padding: 15px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        .option-checkbox {
+            margin: 5px 0;
+        }
+        .nav-tabs {
+            margin: 0 15px;
+        }
+        .tab-content {
+            padding: 0 15px;
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <div class="container-fluid">
+        <!-- 헤더 -->
+        <div class="bg-primary text-white p-3 mb-3">
+            <div class="text-center">
+                <h4><i class="fas fa-utensils"></i> 항아리 손칼국수</h4>
+                <p class="mb-0">테이블 {{ table.number }}번 ({{ table.seats }}석)</p>
+            </div>
+        </div>
+
+        <!-- 탭 네비게이션 -->
+        <ul class="nav nav-tabs mb-4" id="orderTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="menu-tab" data-bs-toggle="tab" data-bs-target="#menu" type="button" role="tab" onclick="showCart()">
+                    <i class="fas fa-utensils"></i> 메뉴 주문
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" onclick="loadOrderStatus(); hideCart()">
+                    <i class="fas fa-list"></i> 주문 현황
+                </button>
+            </li>
+        </ul>
+
+        <!-- 탭 컨텐츠 -->
+        <div class="tab-content" id="orderTabsContent">
+            <!-- 메뉴 주문 탭 -->
+            <div class="tab-pane fade show active" id="menu" role="tabpanel">
+                <div class="row">
+                    {% for menu in menus %}
+                    <div class="col-12">
+                        <div class="menu-card p-3" data-menu-id="{{ menu.id }}">
+                            <div class="row align-items-center">
+                                <div class="col-8">
+                                    <h5 class="mb-1">{{ menu.name }}</h5>
+                                    <p class="text-muted mb-1 small">{{ menu.description }}</p>
+                                    <div class="h5 text-primary mb-2">{{ menu.price|floatformat:0 }}원</div>
+                                    
+                                    {% if menu.min_order > 1 %}
+                                    <div class="badge bg-warning text-dark mb-2">
+                                        {{ menu.min_order }}인분부터 주문 가능
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- 옵션 선택 -->
+                                    {% if menu.options %}
+                                    <div class="options-section mb-2">
+                                        <small class="text-muted">옵션 선택:</small>
+                                        {% for option in menu.options %}
+                                        <div class="option-checkbox">
+                                            <input type="checkbox" 
+                                                   id="option_{{ menu.id }}_{{ forloop.counter }}" 
+                                                   class="form-check-input"
+                                                   value="{{ option }}">
+                                            <label for="option_{{ menu.id }}_{{ forloop.counter }}" class="form-check-label small">
+                                                {{ option }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-4 text-end">
+                                    <div class="quantity-control justify-content-end">
+                                        <button class="btn btn-outline-secondary quantity-btn" onclick="changeQuantity({{ menu.id }}, -1)">
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                        <span class="quantity-display fw-bold" id="qty_{{ menu.id }}">0</span>
+                                        <button class="btn btn-outline-primary quantity-btn" onclick="changeQuantity({{ menu.id }}, 1)">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- 주문 현황 탭 -->
+            <div class="tab-pane fade" id="status" role="tabpanel">
+                <div class="row">
+                    <div class="col-12">
+                        <h5><i class="fas fa-receipt"></i> 현재 주문 현황</h5>
+                        <div id="order-status-list">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">로딩 중...</span>
+                                </div>
+                                <p class="mt-2">주문 현황을 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 장바구니 요약 -->
+        <div class="cart-summary" id="cart-summary">
+            <div class="row align-items-center">
+                <div class="col-6">
+                    <div class="fw-bold">총 <span id="total-items">0</span>개</div>
+                    <div class="h5 text-primary mb-0">총 <span id="total-amount">0</span>원</div>
+                </div>
+                <div class="col-6 text-end">
+                    <button class="btn btn-primary btn-lg" onclick="submitOrder()" id="order-btn" disabled>
+                        <i class="fas fa-shopping-cart"></i> 주문하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 주문 완료 모달 -->
+    <div class="modal fade" id="orderCompleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle"></i> 주문 완료
+                    </h5>
+                </div>
+                <div class="modal-body text-center">
+                    <h4>주문이 접수되었습니다!</h4>
+                    <p class="text-muted">주문번호: <span id="order-number"></span></p>
+                    <p>총 주문금액: <strong><span id="final-amount"></span>원</strong></p>
+                    <p class="small text-muted mt-3">
+                        주문이 주방으로 전달되었습니다.<br>
+                        잠시만 기다려 주세요.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" onclick="location.reload()">
+                        추가 주문하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let cart = {};
+        let menus = {
+            {% for menu in menus %}
+            {{ menu.id }}: {
+                name: '{{ menu.name }}',
+                price: {{ menu.price }},
+                min_order: {{ menu.min_order }}
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        };
+        
+        console.log('Menus loaded:', menus);
+
+        function changeQuantity(menuId, change) {
+            console.log('changeQuantity called:', menuId, change);
+            console.log('menus[menuId]:', menus[menuId]);
+            
+            if (!cart[menuId]) {
+                cart[menuId] = { quantity: 0, options: [] };
+            }
+            
+            cart[menuId].quantity = Math.max(0, cart[menuId].quantity + change);
+            
+            // menus 객체에 해당 메뉴가 있는지 확인
+            if (menus[menuId] && cart[menuId].quantity > 0 && cart[menuId].quantity < menus[menuId].min_order) {
+                cart[menuId].quantity = menus[menuId].min_order;
+            }
+            
+            document.getElementById(`qty_${menuId}`).textContent = cart[menuId].quantity;
+            updateCart();
+        }
+
+        function updateCart() {
+            console.log('updateCart called');
+            console.log('current cart:', cart);
+            
+            let totalItems = 0;
+            let totalAmount = 0;
+            
+            for (let menuId in cart) {
+                if (cart[menuId].quantity > 0) {
+                    totalItems += cart[menuId].quantity;
+                    
+                    // menus 객체에 해당 메뉴가 있는지 확인
+                    if (menus[menuId]) {
+                        totalAmount += cart[menuId].quantity * menus[menuId].price;
+                    }
+                    
+                    const options = [];
+                    const checkboxes = document.querySelectorAll(`[data-menu-id="${menuId}"] input[type="checkbox"]:checked`);
+                    checkboxes.forEach(cb => options.push(cb.value));
+                    cart[menuId].options = options;
+                }
+            }
+            
+            console.log('totalItems:', totalItems, 'totalAmount:', totalAmount);
+            
+            document.getElementById('total-items').textContent = totalItems;
+            document.getElementById('total-amount').textContent = totalAmount.toLocaleString();
+            document.getElementById('order-btn').disabled = totalItems === 0;
+        }
+
+        function submitOrder() {
+            const orderItems = [];
+            
+            for (let menuId in cart) {
+                if (cart[menuId].quantity > 0) {
+                    orderItems.push({
+                        menu_id: parseInt(menuId),
+                        quantity: cart[menuId].quantity,
+                        options: cart[menuId].options
+                    });
+                }
+            }
+            
+            if (orderItems.length === 0) {
+                alert('주문할 메뉴를 선택해주세요.');
+                return;
+            }
+            
+            fetch('/order/submit/{{ table.number }}/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ items: orderItems })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('order-number').textContent = data.order_id;
+                    document.getElementById('final-amount').textContent = data.total_amount.toLocaleString();
+                    
+                    // 장바구니 초기화
+                    cart = {};
+                    
+                    // 화면의 모든 수량 표시를 0으로 리셋
+                    document.querySelectorAll('[id^="qty_"]').forEach(el => {
+                        el.textContent = '0';
+                    });
+                    
+                    // 체크박스 해제
+                    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    
+                    // 총 금액 업데이트
+                    updateCart();
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('orderCompleteModal'));
+                    modal.show();
+                } else {
+                    alert('주문 처리 중 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('주문 처리 중 오류가 발생했습니다.');
+            });
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target.type === 'checkbox') {
+                updateCart();
+            }
+        });
+
+        function showCart() {
+            document.getElementById('cart-summary').style.display = 'block';
+        }
+        
+        function hideCart() {
+            document.getElementById('cart-summary').style.display = 'none';
+        }
+        
+        function loadOrderStatus() {
+            fetch(`/order/status/{{ table.number }}/`)
+                .then(response => response.json())
+                .then(data => {
+                    let statusHtml = '';
+                    let grandTotal = 0;
+                    
+                    if (data.orders && data.orders.length > 0) {
+                        data.orders.forEach(order => {
+                            grandTotal += order.total_amount;
+                            
+                            statusHtml += `
+                                <div class="card mb-3">
+                                    <div class="card-header d-flex justify-content-between">
+                                        <span><strong>주문 #${order.id}</strong></span>
+                                        <span class="badge ${
+                                            order.status === 'ready' ? 'bg-success' : 
+                                            order.status === 'cooking' ? 'bg-primary' : 'bg-secondary'
+                                        }">${order.status_display}</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <small class="text-muted">${order.created_at}</small>
+                                        <div class="mt-2">
+                            `;
+                            
+                            order.items.forEach(item => {
+                                const statusIcon = item.status === 'ready' ? 
+                                    '<i class="fas fa-check-circle text-success"></i>' : 
+                                    '<i class="fas fa-clock text-primary"></i>';
+                                
+                                statusHtml += `
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div>
+                                            ${statusIcon} ${item.menu_name} x ${item.quantity}
+                                            ${item.options.length > 0 ? `<small class="text-muted">(${item.options.join(', ')})</small>` : ''}
+                                        </div>
+                                        <span>${item.total_price.toLocaleString()}원</span>
+                                    </div>
+                                `;
+                            });
+                            
+                            statusHtml += `
+                                        </div>
+                                        <hr>
+                                        <div class="text-end">
+                                            <strong>총 ${order.total_amount.toLocaleString()}원</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        // 전체 주문 총액 표시
+                        statusHtml += `
+                            <div class="card border-primary">
+                                <div class="card-body bg-light text-center">
+                                    <h4 class="text-primary mb-0">
+                                        <i class="fas fa-calculator"></i> 총 결제금액: <strong>${grandTotal.toLocaleString()}원</strong>
+                                    </h4>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        statusHtml = `
+                            <div class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">주문 내역이 없습니다.</h5>
+                                <p class="text-muted">메뉴를 선택하여 주문해 주세요.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('order-status-list').innerHTML = statusHtml;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('order-status-list').innerHTML = `
+                        <div class="alert alert-danger">
+                            주문 현황을 불러오는 중 오류가 발생했습니다.
+                        </div>
+                    `;
+                });
+        }
+    </script>
+</body>
+</html>

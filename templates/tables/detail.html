@@ -1,0 +1,135 @@
+<!-- 탭 네비게이션 -->
+<ul class="nav nav-tabs" id="tableDetailTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab">
+            <i class="fas fa-info-circle"></i> 테이블 정보
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="order-tab" data-bs-toggle="tab" data-bs-target="#order" type="button" role="tab">
+            <i class="fas fa-plus-circle"></i> 새 주문
+        </button>
+    </li>
+</ul>
+
+<!-- 탭 컨텐츠 -->
+<div class="tab-content" id="tableDetailTabsContent">
+    <!-- 테이블 정보 탭 -->
+    <div class="tab-pane fade show active" id="info" role="tabpanel">
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <h5><i class="fas fa-table"></i> 테이블 {{ table.number }}번</h5>
+                <p><strong>좌석 수:</strong> {{ table.seats }}석</p>
+                <p><strong>현재 상태:</strong> 
+                    <span class="badge bg-primary">{{ table.get_status_display }}</span>
+                </p>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> 
+                    테이블 상태는 대시보드에서 상태 배지를 클릭하여 변경할 수 있습니다.
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <h6><i class="fas fa-receipt"></i> 현재 주문 현황</h6>
+                {% if orders %}
+                    {% for order in orders %}
+                    <div class="card mb-2">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between">
+                                <span><strong>주문 #{{ order.id }}</strong></span>
+                                <span class="badge {% if order.status == 'ready' %}bg-success{% elif order.status == 'cooking' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </div>
+                            <small class="text-muted">{{ order.created_at|date:"Y-m-d H:i" }}</small>
+                            <div class="mt-1">
+                                {% for item in order.items.all %}
+                                <div class="small d-flex justify-content-between align-items-center mb-1">
+                                    <div>
+                                        <span class="{% if item.status == 'ready' %}text-success{% else %}text-primary{% endif %}">
+                                            <i class="fas {% if item.status == 'ready' %}fa-check-circle{% else %}fa-clock{% endif %}"></i>
+                                        </span>
+                                        {{ item.menu.name }} x {{ item.quantity }}
+                                        {% if item.options %}
+                                            <span class="text-muted">({{ item.options|join:", " }})</span>
+                                        {% endif %}
+                                    </div>
+                                    <span>{{ item.get_total_price|floatformat:0 }}원</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <hr class="my-1">
+                            <div class="text-end">
+                                <strong class="text-primary">{{ order.get_final_amount|floatformat:0 }}원</strong>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- 총 금액 및 결제 처리 -->
+                    <div class="card bg-light mt-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0"><i class="fas fa-calculator"></i> 총 결제 금액</h6>
+                                <h4 class="mb-0 text-primary">
+                                    <span id="table-total-amount">{{ total_amount|floatformat:0 }}</span>원
+                                </h4>
+                            </div>
+                            
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <button class="btn btn-success w-100" onclick="processPayment('card')">
+                                        <i class="fas fa-credit-card"></i><br>카드 결제
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button class="btn btn-warning w-100" onclick="processPayment('cash')">
+                                        <i class="fas fa-money-bill-wave"></i><br>현금 결제
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">현재 주문이 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- 새 주문 탭 -->
+    <div class="tab-pane fade" id="order" role="tabpanel">
+        <div class="row mt-3">
+            <div class="col-md-8">
+                <h6>메뉴 선택</h6>
+                <div id="menu-list">
+                    <!-- 메뉴 목록이 동적으로 로드됨 -->
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6><i class="fas fa-shopping-cart"></i> 주문 내역</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="modal-order-items">
+                            <p class="text-muted text-center">선택된 메뉴가 없습니다.</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <strong>총 금액:</strong>
+                            <strong class="text-primary" id="modal-total-amount">0원</strong>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-primary w-100" onclick="submitModalOrder()" id="modal-submit-btn" disabled>
+                            <i class="fas fa-check"></i> 주문 완료
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

@@ -2,6 +2,49 @@ from django.db import models
 from tables.models import Table
 from menus.models import Menu
 
+class PaymentMethod(models.Model):
+    name = models.CharField(max_length=50, unique=True, verbose_name='결제 방식명')
+    code = models.CharField(max_length=20, unique=True, verbose_name='코드')
+    is_active = models.BooleanField(default=True, verbose_name='활성 상태')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    
+    class Meta:
+        verbose_name = '결제 방식'
+        verbose_name_plural = '결제 방식'
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+
+class Discount(models.Model):
+    DISCOUNT_TYPES = [
+        ('amount', '정액 할인'),
+        ('percent', '정률 할인'),
+    ]
+    
+    name = models.CharField(max_length=100, verbose_name='할인명')
+    discount_type = models.CharField(max_length=10, choices=DISCOUNT_TYPES, verbose_name='할인 유형')
+    value = models.IntegerField(verbose_name='할인값')
+    is_active = models.BooleanField(default=True, verbose_name='활성 상태')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
+    
+    class Meta:
+        verbose_name = '할인'
+        verbose_name_plural = '할인'
+    
+    def __str__(self):
+        if self.discount_type == 'amount':
+            return f'{self.name} ({self.value:,}원 할인)'
+        else:
+            return f'{self.name} ({self.value}% 할인)'
+    
+    def calculate_discount(self, amount):
+        """할인 금액 계산"""
+        if self.discount_type == 'amount':
+            return min(self.value, amount)
+        else:
+            return int(amount * self.value / 100)
+
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', '주문 대기'),
@@ -12,7 +55,7 @@ class Order(models.Model):
         ('paid', '결제 완료'),
     ]
     
-    table = models.ForeignKey(Table, on_delete=models.CASCADE, verbose_name='테이블')
+    table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name='orders', verbose_name='테이블')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending', verbose_name='상태')
     total_amount = models.IntegerField(default=0, verbose_name='총 금액')
     discount = models.IntegerField(default=0, verbose_name='할인 금액')

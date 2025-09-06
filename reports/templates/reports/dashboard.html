@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+
+{% block title %}매출 관리 - 항아리 손칼국수{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-line"></i> 매출 관리</h2>
+    <div>
+        <button class="btn btn-outline-primary" onclick="exportData()">
+            <i class="fas fa-download"></i> 데이터 내보내기
+        </button>
+    </div>
+</div>
+
+<!-- 오늘 매출 요약 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 총매출</h6>
+                        <h4>{{ today_sales|floatformat:0 }}원</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-won-sign fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 순매출</h6>
+                        <h4>{{ today_net_sales|floatformat:0 }}원</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 할인</h6>
+                        <h4>{{ today_discount|floatformat:0 }}원</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-percentage fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 주문수</h6>
+                        <h4>{{ today_orders }}건</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-shopping-cart fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 결제 방법별 매출 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-light">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 카드 매출</h6>
+                        <h4>{{ today_card_sales|floatformat:0 }}원</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-credit-card fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-light">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6>오늘 현금 매출</h6>
+                        <h4>{{ today_cash_sales|floatformat:0 }}원</h4>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-money-bill-wave fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 차트 섹션 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5>일별 매출 추이</h5>
+                <select class="form-select form-select-sm" style="width: auto;" onchange="loadDailySales(this.value)">
+                    <option value="7">최근 7일</option>
+                    <option value="14">최근 14일</option>
+                    <option value="30">최근 30일</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <canvas id="dailySalesChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>월별 매출 추이</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlySalesChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>인기 메뉴 TOP 10</h5>
+            </div>
+            <div class="card-body">
+                <div id="popularMenus">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-2">로딩 중...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5>시간대별 매출 분석</h5>
+                <input type="date" class="form-control" style="width: auto;" id="hourlyDate" onchange="loadHourlySales(this.value)">
+            </div>
+            <div class="card-body">
+                <canvas id="hourlySalesChart" height="50"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let dailySalesChart, hourlySalesChart, monthlySalesChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 오늘 날짜로 초기화
+    document.getElementById('hourlyDate').value = new Date().toISOString().split('T')[0];
+    
+    loadDailySales(7);
+    loadMonthlySales();
+    loadMenuSales();
+    loadHourlySales();
+});
+
+function loadDailySales(days) {
+    fetch(`/reports/api/daily-sales/?days=${days}`)
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('dailySalesChart').getContext('2d');
+            
+            if (dailySalesChart) {
+                dailySalesChart.destroy();
+            }
+            
+            dailySalesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date_display),
+                    datasets: [{
+                        label: '순매출',
+                        data: data.map(d => d.net_sales),
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1
+                    }, {
+                        label: '주문수',
+                        data: data.map(d => d.order_count),
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        yAxisID: 'y1',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        });
+}
+
+function loadMenuSales() {
+    fetch('/reports/api/menu-sales/')
+        .then(response => response.json())
+        .then(data => {
+            let html = '';
+            data.forEach((menu, index) => {
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="badge bg-primary me-2">${index + 1}</span>
+                            ${menu.menu__name}
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">${menu.total_quantity}개</small><br>
+                            <strong>${menu.total_amount.toLocaleString()}원</strong>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('popularMenus').innerHTML = html || '<p class="text-muted">데이터가 없습니다.</p>';
+        });
+}
+
+function loadHourlySales(date) {
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    
+    fetch(`/reports/api/hourly-sales/?date=${targetDate}`)
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('hourlySalesChart').getContext('2d');
+            
+            if (hourlySalesChart) {
+                hourlySalesChart.destroy();
+            }
+            
+            hourlySalesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.hour),
+                    datasets: [{
+                        label: '매출',
+                        data: data.map(d => d.sales),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+}
+
+function loadMonthlySales() {
+    fetch('/reports/api/monthly-sales/?months=6')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('monthlySalesChart').getContext('2d');
+            
+            if (monthlySalesChart) {
+                monthlySalesChart.destroy();
+            }
+            
+            monthlySalesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.month_display),
+                    datasets: [{
+                        label: '순매출',
+                        data: data.map(d => d.net_sales),
+                        backgroundColor: 'rgba(153, 102, 255, 0.5)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+}
+
+function exportData() {
+    // CSV 내보내기 기능 (간단 구현)
+    fetch('/reports/api/daily-sales/?days=30')
+        .then(response => response.json())
+        .then(data => {
+            let csv = '날짜,총매출,할인,순매출,주문수\n';
+            data.forEach(row => {
+                csv += `${row.date},${row.total_sales},${row.total_discount},${row.net_sales},${row.order_count}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `매출데이터_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+}
+</script>
+{% endblock %}

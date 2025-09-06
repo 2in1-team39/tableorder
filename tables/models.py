@@ -27,8 +27,51 @@ class Table(models.Model):
     def __str__(self):
         return f'테이블 {self.number}번'
     
+    def generate_qr_code(self):
+        """테이블용 QR코드 생성"""
+        from django.conf import settings
+        
+        # QR코드에 포함될 URL (고객 주문 페이지)
+        qr_url = f"http://localhost:8000/order/{self.number}/"
+        
+        # QR코드 생성
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        
+        # 이미지 생성
+        qr_image = qr.make_image(fill_color="black", back_color="white")
+        
+        # BytesIO로 저장
+        buffer = BytesIO()
+        qr_image.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        # 파일로 저장
+        filename = f'table_{self.number}_qr.png'
+        self.qr_code.save(filename, File(buffer), save=False)
+        buffer.close()
+    
+    def get_group(self):
+        """테이블이 속한 그룹 반환"""
+        try:
+            return self.tablegroup_set.first()
+        except:
+            return None
+    
     def save(self, *args, **kwargs):
+        # 처음 생성시 QR코드 자동 생성
+        is_new = self.pk is None
         super().save(*args, **kwargs)
+        
+        if is_new or not self.qr_code:
+            self.generate_qr_code()
+            super().save(update_fields=['qr_code'])
 
 class TableGroup(models.Model):
     name = models.CharField(max_length=100, verbose_name='그룹명')

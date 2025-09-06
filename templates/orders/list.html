@@ -6,8 +6,27 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-fire"></i> 주방 주문 관리</h2>
     <div>
-        <span class="badge bg-primary me-2">조리 중</span>
-        <span class="badge bg-success">조리 완료</span>
+        <span class="badge bg-secondary me-2">전체 {{ total_count }}</span>
+        <span class="badge bg-primary me-2">조리중 {{ cooking_count }}</span>
+        <span class="badge bg-success">완료 {{ ready_count }}</span>
+    </div>
+</div>
+
+<!-- 상태 필터 -->
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <a href="?status=all" class="btn {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="fas fa-list"></i> 전체 ({{ total_count }})
+        </a>
+        <a href="?status=cooking" class="btn {% if status_filter == 'cooking' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="fas fa-fire"></i> 조리중 ({{ cooking_count }})
+        </a>
+        <a href="?status=ready" class="btn {% if status_filter == 'ready' %}btn-success{% else %}btn-outline-success{% endif %}">
+            <i class="fas fa-check"></i> 완료 ({{ ready_count }})
+        </a>
+        <a href="?status=completed" class="btn {% if status_filter == 'completed' %}btn-info{% else %}btn-outline-info{% endif %}">
+            <i class="fas fa-history"></i> 오늘 완료 ({{ completed_count }})
+        </a>
     </div>
 </div>
 
@@ -20,6 +39,11 @@
                     <div class="col-md-2">
                         <div class="text-center">
                             <h5 class="mb-1">테이블 {{ order.table.number }}번</h5>
+                            {% if order.table.get_group %}
+                            <div class="badge bg-info mb-2">
+                                <i class="fas fa-users"></i> {{ order.table.get_group.name }}
+                            </div>
+                            {% endif %}
                             <small class="text-muted">{{ order.created_at|date:"H:i" }}</small>
                             <div class="mt-2">
                                 <small class="text-muted">{{ order.created_at|timesince }} 전</small>
@@ -39,17 +63,23 @@
                                 </div>
                                 
                                 <div class="text-end">
-                                    <span class="badge fs-6 menu-status-badge {% if item.status == 'ready' %}bg-success{% else %}bg-primary{% endif %}" 
-                                          data-item-id="{{ item.id }}"
-                                          onclick="toggleMenuStatus({{ item.id }})"
-                                          style="cursor: pointer; padding: 8px 12px;"
-                                          title="클릭하여 상태 변경">
-                                        {% if item.status == 'ready' %}
-                                            <i class="fas fa-check"></i> 완료
-                                        {% else %}
-                                            <i class="fas fa-fire"></i> 조리중
-                                        {% endif %}
-                                    </span>
+                                    {% if order.status == 'paid' %}
+                                        <span class="badge fs-6 bg-secondary" style="padding: 8px 12px;">
+                                            <i class="fas fa-check-circle"></i> 결제완료
+                                        </span>
+                                    {% else %}
+                                        <span class="badge fs-6 menu-status-badge {% if item.status == 'ready' %}bg-success{% else %}bg-primary{% endif %}" 
+                                              data-item-id="{{ item.id }}"
+                                              onclick="toggleMenuStatus({{ item.id }})"
+                                              style="cursor: pointer; padding: 8px 12px;"
+                                              title="클릭하여 상태 변경">
+                                            {% if item.status == 'ready' %}
+                                                <i class="fas fa-check"></i> 완룼
+                                            {% else %}
+                                                <i class="fas fa-fire"></i> 조리중
+                                            {% endif %}
+                                        </span>
+                                    {% endif %}
                                 </div>
                             </div>
                             {% endif %}
@@ -118,39 +148,94 @@ function toggleMenuStatus(itemId) {
     });
 }
 
-let previousOrderCount = document.querySelectorAll('.order-card').length;
+let previousOrderCount = 0;
+let lastUpdateTime = Date.now();
 
-// 페이지 로드 시 스크롤을 맨 아래로
-window.addEventListener('load', function() {
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    previousOrderCount = document.querySelectorAll('.order-card').length;
+    scrollToBottom();
+    
+    // 3초마다 실시간 업데이트
+    setInterval(updateKitchenStatus, 3000);
+});
+
+function scrollToBottom() {
     setTimeout(function() {
         window.scrollTo({
             top: document.body.scrollHeight,
             behavior: 'smooth'
         });
     }, 100);
-});
+}
 
-// 5초마다 자동 새로고침
-setInterval(function() {
-    // 새로고침 전 주문 수를 localStorage에 저장
-    localStorage.setItem('previousOrderCount', document.querySelectorAll('.order-card').length);
-    location.reload();
-}, 5000);
-
-// 페이지 로드 후 새 주문 확인
-document.addEventListener('DOMContentLoaded', function() {
-    const storedCount = localStorage.getItem('previousOrderCount');
-    const currentCount = document.querySelectorAll('.order-card').length;
+function updateKitchenStatus() {
+    const currentFilter = new URLSearchParams(window.location.search).get('status') || 'all';
     
-    if (storedCount && parseInt(storedCount) < currentCount) {
-        // 새 주문이 있으면 스크롤 맨 아래로
-        setTimeout(function() {
-            window.scrollTo({
-                top: document.body.scrollHeight,
-                behavior: 'smooth'
-            });
-        }, 200);
-    }
-});
+    fetch('/orders/api/kitchen-status/')
+        .then(response => response.json())
+        .then(data => {
+            // 카운트 업데이트
+            updateCounts(data.cooking_count, data.ready_count, data.total_count);
+            
+            // 새 주문 감지
+            if (data.total_count > previousOrderCount) {
+                showNewOrderAlert();
+                scrollToBottom();
+            }
+            
+            previousOrderCount = data.total_count;
+            lastUpdateTime = Date.now();
+        })
+        .catch(error => {
+            console.error('Error updating kitchen status:', error);
+        });
+}
+
+function updateCounts(cooking, ready, total) {
+    // 배지 업데이트
+    const badges = document.querySelectorAll('.badge');
+    badges.forEach(badge => {
+        if (badge.textContent.includes('전체')) {
+            badge.textContent = `전체 ${total}`;
+        } else if (badge.textContent.includes('조리중')) {
+            badge.textContent = `조리중 ${cooking}`;
+        } else if (badge.textContent.includes('완료') && !badge.textContent.includes('오늘')) {
+            badge.textContent = `완료 ${ready}`;
+        }
+    });
+    
+    // 필터 버튼 업데이트
+    const filterButtons = document.querySelectorAll('.btn-group a');
+    filterButtons.forEach(btn => {
+        if (btn.textContent.includes('전체')) {
+            btn.innerHTML = `<i class="fas fa-list"></i> 전체 (${total})`;
+        } else if (btn.textContent.includes('조리중')) {
+            btn.innerHTML = `<i class="fas fa-fire"></i> 조리중 (${cooking})`;
+        } else if (btn.textContent.includes('완료') && !btn.textContent.includes('오늘')) {
+            btn.innerHTML = `<i class="fas fa-check"></i> 완료 (${ready})`;
+        }
+    });
+}
+
+function showNewOrderAlert() {
+    // 새 주문 알림 표시
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alert.innerHTML = `
+        <i class="fas fa-bell"></i> <strong>새 주문이 들어왔습니다!</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alert);
+    
+    // 5초 후 자동 사라짐
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
+}
 </script>
 {% endblock %}

@@ -24,6 +24,7 @@ urlpatterns = [
     path('', include('tables.urls')),
     path('orders/', include('orders.urls')),
     path('menus/', include('menus.urls')),
+    path('reports/', include('reports.urls')),
 ]
 
 if settings.DEBUG:

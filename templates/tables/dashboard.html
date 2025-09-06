@@ -6,9 +6,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-table"></i> 테이블 현황</h2>
     <div>
+        <button class="btn btn-success me-2" onclick="location.reload()">
+            <i class="fas fa-sync-alt"></i> 새로고침
+        </button>
+        <button class="btn btn-primary me-3" data-bs-toggle="modal" data-bs-target="#groupModal">
+            <i class="fas fa-users"></i> 그룹 관리
+        </button>
         <span class="badge bg-secondary me-2">빈 테이블</span>
         <span class="badge bg-warning me-2">주문 완료</span>
-        <span class="badge bg-danger me-2">조리 완료</span>
+        <span class="badge bg-danger me-2">조리 완룼</span>
         <span class="badge bg-info">결제 완료</span>
     </div>
 </div>
@@ -20,6 +26,11 @@
              data-table-id="{{ table.id }}" 
              onclick="showTableDetail({{ table.id }})">
             <h4>테이블 {{ table.number }}</h4>
+            {% if table.get_group %}
+            <div class="badge bg-info mb-2">
+                <i class="fas fa-users"></i> {{ table.get_group.name }}
+            </div>
+            {% endif %}
             <p class="mb-1">
                 <i class="fas fa-chair"></i> {{ table.seats }}석
             </p>
@@ -51,6 +62,42 @@
         </div>
     </div>
 </div>
+
+<!-- 그룹 관리 모달 -->
+<div class="modal fade" id="groupModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-users"></i> 그룹 관리</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>새 그룹 생성</h6>
+                        <div class="mb-3">
+                            <label class="form-label">테이블 선택:</label>
+                            <div id="tableSelection" class="border p-2" style="max-height: 200px; overflow-y: auto;">
+                                <!-- 테이블 체크박스 동적 로드 -->
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="createGroup()">
+                            <i class="fas fa-plus"></i> 그룹 생성
+                        </button>
+                        <small class="text-muted d-block mt-2">그룹명은 자동으로 생성됩니다.</small>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>기존 그룹</h6>
+                        <div id="existingGroups">
+                            <!-- 기존 그룹 목록 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -60,8 +107,13 @@ let tableModal;
 document.addEventListener('DOMContentLoaded', function() {
     tableModal = new bootstrap.Modal(document.getElementById('tableModal'));
     
-    // 2초마다 테이블 상태 업데이트
-    setInterval(updateTableStatus, 2000);
+    // 실시간 업데이트 비활성화 (결제완룼 상태 유지를 위해)
+    // setInterval(updateTableStatus, 2000);
+    
+    // 그룹 모달 열릴 때 데이터 로드
+    document.getElementById('groupModal').addEventListener('show.bs.modal', function() {
+        loadGroupManagement();
+    });
 });
 
 function updateTableStatus() {
@@ -77,6 +129,22 @@ function updateTableStatus() {
                     tableCard.className = tableCard.className.replace(/table-(empty|ordered|cooking|paid)/g, '');
                     // 새 상태 클래스 추가
                     tableCard.classList.add(`table-${table.status}`);
+                    
+                    // 그룹 정보 업데이트
+                    const existingGroupBadge = tableCard.querySelector('.badge.bg-info');
+                    if (table.group_name) {
+                        if (!existingGroupBadge) {
+                            const groupBadge = document.createElement('div');
+                            groupBadge.className = 'badge bg-info mb-2';
+                            groupBadge.innerHTML = `<i class="fas fa-users"></i> ${table.group_name}`;
+                            const h4 = tableCard.querySelector('h4');
+                            h4.insertAdjacentElement('afterend', groupBadge);
+                        } else {
+                            existingGroupBadge.innerHTML = `<i class="fas fa-users"></i> ${table.group_name}`;
+                        }
+                    } else if (existingGroupBadge) {
+                        existingGroupBadge.remove();
+                    }
                 }
                 
                 if (statusBadge) {
@@ -84,7 +152,7 @@ function updateTableStatus() {
                     const statusConfig = {
                         'empty': { text: '빈 테이블', class: 'bg-secondary' },
                         'ordered': { text: '주문 완료', class: 'bg-warning' },
-                        'cooking': { text: '조리 완료', class: 'bg-danger' },
+                        'cooking': { text: '조리 완룼', class: 'bg-danger' },
                         'paid': { text: '결제 완료', class: 'bg-info' }
                     };
                     
@@ -111,12 +179,80 @@ function showTableDetail(tableId) {
             document.getElementById('modal-content').innerHTML = html;
             tableModal.show();
             
+            // 할인 옵션 로드
+            loadDiscountOptions();
+            
             // 새 주문 탭이 활성화될 때 메뉴 로드
             document.getElementById('order-tab').addEventListener('click', function() {
                 loadMenusForModal(tableId);
             });
         })
         .catch(error => console.error('Error loading table detail:', error));
+}
+
+function loadDiscountOptions(selectId = 'discountSelect') {
+    fetch('/api/discounts/')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(discounts => {
+            const select = document.getElementById(selectId);
+            if (select) {
+                let optionsHtml = '<option value="">할인 없음</option>';
+                if (Array.isArray(discounts)) {
+                    discounts.forEach(discount => {
+                        optionsHtml += `<option value="${discount.id}" data-type="${discount.discount_type}" data-value="${discount.value}">${discount.name}</option>`;
+                    });
+                }
+                select.innerHTML = optionsHtml;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading discounts:', error);
+            const select = document.getElementById(selectId);
+            if (select) {
+                select.innerHTML = '<option value="">할인 없음</option>';
+            }
+        });
+}
+
+function applyDiscount() {
+    const select = document.getElementById('discountSelect');
+    const totalAmountElement = document.getElementById('table-total-amount');
+    
+    if (!select || !totalAmountElement) return;
+    
+    const selectedOption = select.options[select.selectedIndex];
+    const originalAmount = parseInt(totalAmountElement.dataset.original || totalAmountElement.textContent.replace(/[^0-9]/g, ''));
+    
+    // 원래 금액 저장
+    if (!totalAmountElement.dataset.original) {
+        totalAmountElement.dataset.original = originalAmount;
+    }
+    
+    if (selectedOption.value) {
+        const discountType = selectedOption.dataset.type;
+        const discountValue = parseInt(selectedOption.dataset.value);
+        
+        let discountAmount = 0;
+        if (discountType === 'amount') {
+            discountAmount = Math.min(discountValue, originalAmount);
+        } else {
+            discountAmount = Math.floor(originalAmount * discountValue / 100);
+        }
+        
+        const finalAmount = originalAmount - discountAmount;
+        totalAmountElement.innerHTML = `
+            <span style="text-decoration: line-through; color: #999;">${originalAmount.toLocaleString()}</span><br>
+            <span style="color: #dc3545;">-${discountAmount.toLocaleString()}</span><br>
+            <strong>${finalAmount.toLocaleString()}</strong>
+        `;
+    } else {
+        totalAmountElement.textContent = originalAmount.toLocaleString();
+    }
 }
 
 let modalCart = {};
@@ -302,9 +438,19 @@ function processPayment(paymentMethod) {
     }
     
     const paymentText = paymentMethod === 'card' ? '카드' : '현금';
+    const discountSelect = document.getElementById('discountSelect');
+    const discountId = discountSelect ? discountSelect.value : null;
     
     if (!confirm(`${paymentText} 결제를 진행하시겠습니까?`)) {
         return;
+    }
+    
+    const requestData = {
+        payment_method: paymentText
+    };
+    
+    if (discountId) {
+        requestData.discount_id = discountId;
     }
     
     fetch(`/payment/${currentTableId}/`, {
@@ -312,7 +458,7 @@ function processPayment(paymentMethod) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({payment_method: paymentText})
+        body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
@@ -330,6 +476,37 @@ function processPayment(paymentMethod) {
     });
 }
 
+function updateSingleTable(tableId, newStatus) {
+    const tableCard = document.querySelector(`.table-card[data-table-id="${tableId}"]`);
+    const statusBadge = document.querySelector(`.status-badge[data-table-id="${tableId}"]`);
+    
+    if (tableCard) {
+        // 기존 상태 클래스 제거
+        tableCard.className = tableCard.className.replace(/table-(empty|ordered|cooking|paid)/g, '');
+        // 새 상태 클래스 추가
+        tableCard.classList.add(`table-${newStatus}`);
+    }
+    
+    if (statusBadge) {
+        const statusConfig = {
+            'empty': { text: '빈 테이블', class: 'bg-secondary' },
+            'ordered': { text: '주문 완료', class: 'bg-warning' },
+            'cooking': { text: '조리 완룼', class: 'bg-danger' },
+            'paid': { text: '결제 완룼', class: 'bg-info' }
+        };
+        
+        const config = statusConfig[newStatus] || { text: newStatus, class: 'bg-primary' };
+        
+        // 기존 배경 클래스 제거
+        statusBadge.className = statusBadge.className.replace(/bg-(primary|secondary|warning|danger|info|success)/g, '');
+        
+        // 새 텍스트와 색상 적용
+        statusBadge.textContent = config.text;
+        statusBadge.classList.add(config.class);
+        statusBadge.setAttribute('onclick', `event.stopPropagation(); cycleTableStatus(${tableId}, '${newStatus}')`);
+    }
+}
+
 function updateStatus(tableId, newStatus) {
     fetch(`/api/update/${tableId}/`, {
         method: 'POST',
@@ -341,7 +518,8 @@ function updateStatus(tableId, newStatus) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            updateTableStatus();
+            // 개별 테이블만 업데이트
+            updateSingleTable(tableId, newStatus);
             if (typeof tableModal !== 'undefined' && tableModal._isShown) {
                 tableModal.hide();
             }
@@ -362,6 +540,14 @@ function cycleTableStatus(tableId, currentStatus) {
     };
     
     const nextStatus = statusCycle[currentStatus] || 'empty';
+    
+    // 결제완룼에서 빈 테이블로 변경 시 확인
+    if (currentStatus === 'paid' && nextStatus === 'empty') {
+        if (!confirm('테이블을 비우시겠습니까?')) {
+            return;
+        }
+    }
+    
     updateStatus(tableId, nextStatus);
 }
 
@@ -390,6 +576,401 @@ function cancelOrderItem(itemId) {
     .catch(error => {
         console.error('Error:', error);
         alert('취소 처리 중 오류가 발생했습니다.');
+    });
+}
+
+function generateQRCode(tableId) {
+    fetch(`/api/generate-qr/${tableId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('QR코드가 생성되었습니다.');
+            tableModal.hide();
+            setTimeout(() => showTableDetail(tableId), 300);
+        } else {
+            alert('QR코드 생성에 실패했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('QR코드 생성 중 오류가 발생했습니다.');
+    });
+}
+
+function regenerateQRCode(tableId) {
+    if (!confirm('QR코드를 다시 생성하시겠습니까?')) {
+        return;
+    }
+    generateQRCode(tableId);
+}
+
+function printQRCode(tableId) {
+    const printWindow = window.open('', '_blank');
+    const qrImage = document.querySelector(`img[alt="QR코드"]`);
+    
+    if (qrImage) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>테이블 ${tableId} QR코드</title>
+                    <style>
+                        body { text-align: center; font-family: Arial, sans-serif; }
+                        img { max-width: 300px; }
+                        h2 { margin: 20px 0; }
+                    </style>
+                </head>
+                <body>
+                    <h2>테이블 ${tableId}번</h2>
+                    <img src="${qrImage.src}" alt="QR코드">
+                    <p>스마트폰으로 QR코드를 스캔하여 주문하세요</p>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    }
+}
+
+function loadGroupManagement() {
+    // 테이블 선택 체크박스 로드
+    fetch('/api/status/')
+        .then(response => response.json())
+        .then(tables => {
+            let tableHtml = '';
+            tables.forEach(table => {
+                tableHtml += `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${table.id}" id="table_${table.id}">
+                        <label class="form-check-label" for="table_${table.id}">
+                            테이블 ${table.number}번 (${table.seats}석)
+                        </label>
+                    </div>
+                `;
+            });
+            document.getElementById('tableSelection').innerHTML = tableHtml;
+        });
+    
+    // 기존 그룹 로드
+    loadExistingGroups();
+}
+
+function loadExistingGroups() {
+    fetch('/api/groups/')
+        .then(response => response.json())
+        .then(groups => {
+            let groupHtml = '';
+            if (groups.length === 0) {
+                groupHtml = '<p class="text-muted">생성된 그룹이 없습니다.</p>';
+            } else {
+                groups.forEach(group => {
+                    const tableNumbers = group.tables.map(t => t.number).join(', ');
+                    groupHtml += `
+                        <div class="card mb-2">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${group.name}</strong><br>
+                                        <small class="text-muted">테이블: ${tableNumbers}</small>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewGroupOrders(${group.id})">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteGroup(${group.id})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('existingGroups').innerHTML = groupHtml;
+        })
+        .catch(error => {
+            console.error('Error loading groups:', error);
+            document.getElementById('existingGroups').innerHTML = '<p class="text-danger">그룹 로드 중 오류가 발생했습니다.</p>';
+        });
+}
+
+function createGroup() {
+    const selectedTables = Array.from(document.querySelectorAll('#tableSelection input:checked')).map(cb => parseInt(cb.value));
+    
+    if (selectedTables.length === 0) {
+        alert('테이블을 선택해주세요.');
+        return;
+    }
+    
+    fetch('/api/groups/create/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            table_ids: selectedTables
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`그룹이 생성되었습니다: ${data.group_name}`);
+            document.querySelectorAll('#tableSelection input').forEach(cb => cb.checked = false);
+            loadExistingGroups();
+        } else {
+            alert('그룹 생성에 실패했습니다: ' + (data.error || '알 수 없는 오류'));
+        }
+    })
+    .catch(error => {
+        console.error('Error creating group:', error);
+        alert('그룹 생성 중 오류가 발생했습니다.');
+    });
+}
+
+function deleteGroup(groupId) {
+    if (!confirm('이 그룹을 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    fetch(`/api/groups/delete/${groupId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('그룹이 삭제되었습니다.');
+            loadExistingGroups();
+        } else {
+            alert('그룹 삭제에 실패했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting group:', error);
+        alert('그룹 삭제 중 오류가 발생했습니다.');
+    });
+}
+
+function viewGroupOrders(groupId) {
+    fetch(`/api/groups/${groupId}/orders/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showGroupOrdersModal(data.group, data.orders, data.total_amount);
+            } else {
+                alert('그룹 주문 정보를 불러오는데 실패했습니다.');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading group orders:', error);
+            alert('그룹 주문 정보 로드 중 오류가 발생했습니다.');
+        });
+}
+
+function showGroupOrdersModal(group, orders, totalAmount) {
+    let ordersHtml = '';
+    
+    if (orders.length === 0) {
+        ordersHtml = '<p class="text-muted text-center py-4">주문 내역이 없습니다.</p>';
+    } else {
+        orders.forEach(order => {
+            ordersHtml += `
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><strong>테이블 ${order.table_number}번 - 주문 #${order.id}</strong></span>
+                        <span class="badge ${
+                            order.status === 'ready' ? 'bg-success' : 
+                            order.status === 'cooking' ? 'bg-primary' : 'bg-secondary'
+                        }">${order.status_display}</span>
+                    </div>
+                    <div class="card-body">
+                        <small class="text-muted">${order.created_at}</small>
+                        <div class="mt-2">
+            `;
+            
+            order.items.forEach(item => {
+                ordersHtml += `
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div>
+                            <i class="fas ${
+                                item.status === 'ready' ? 'fa-check-circle text-success' : 'fa-clock text-primary'
+                            }"></i>
+                            ${item.menu_name} x ${item.quantity}
+                            ${item.options.length > 0 ? `<small class="text-muted">(${item.options.join(', ')})</small>` : ''}
+                        </div>
+                        <span>${item.total_price.toLocaleString()}원</span>
+                    </div>
+                `;
+            });
+            
+            ordersHtml += `
+                        </div>
+                        <hr>
+                        <div class="text-end">
+                            <strong>총 ${order.total_amount.toLocaleString()}원</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    const modalHtml = `
+        <div class="modal fade" id="groupOrdersModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-users"></i> ${group.name} - 주문 현황
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <strong>테이블:</strong> ${group.tables.map(t => t.number + '번').join(', ')}
+                        </div>
+                        ${ordersHtml}
+                        ${orders.length > 0 ? `
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h4 class="text-primary mb-0">
+                                        <i class="fas fa-calculator"></i> 그룹 총 금액: <strong>${totalAmount.toLocaleString()}원</strong>
+                                    </h4>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="modal-footer">
+                        ${orders.length > 0 ? `
+                            <div class="mb-3">
+                                <label class="form-label">그룹 할인:</label>
+                                <select class="form-select" id="groupDiscountSelect">
+                                    <option value="">할인 없음</option>
+                                </select>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <button class="btn btn-success w-100" onclick="processGroupPayment(${group.id}, 'card')">
+                                        <i class="fas fa-credit-card"></i><br>카드 결제
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button class="btn btn-warning w-100" onclick="processGroupPayment(${group.id}, 'cash')">
+                                        <i class="fas fa-money-bill-wave"></i><br>현금 결제
+                                    </button>
+                                </div>
+                            </div>
+                        ` : ''}
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 기존 모달 제거 후 새 모달 추가
+    const existingModal = document.getElementById('groupOrdersModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('groupOrdersModal'));
+    modal.show();
+    
+    // 그룹 할인 옵션 로드
+    loadDiscountOptions('groupDiscountSelect');
+}
+
+function processGroupPayment(groupId, paymentMethod = 'card') {
+    const paymentText = paymentMethod === 'card' ? '카드' : '현금';
+    
+    if (!confirm(`${paymentText} 그룹 결제를 진행하시겠습니까?`)) {
+        return;
+    }
+    
+    const discountSelect = document.getElementById('groupDiscountSelect');
+    const discountId = discountSelect ? discountSelect.value : null;
+    
+    const requestData = {
+        payment_method: paymentText
+    };
+    
+    if (discountId) {
+        requestData.discount_id = discountId;
+    }
+    
+    fetch(`/api/groups/${groupId}/payment/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`그룹 결제가 완료되었습니다.\n총 금액: ${data.total_amount.toLocaleString()}원`);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('groupOrdersModal'));
+            if (modal) modal.hide();
+            updateTableStatus();
+        } else {
+            alert('그룹 결제 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error processing group payment:', error);
+        alert('그룹 결제 처리 중 오류가 발생했습니다.');
+    });
+}
+
+function processGroupPaymentFromTable(groupId) {
+    // 결제 방법 선택 모달 표시
+    const paymentMethod = confirm('그룹 결제 방법을 선택하세요.\n\n확인: 카드 결제\n취소: 현금 결제');
+    const paymentText = paymentMethod ? '카드' : '현금';
+    
+    if (!confirm(`${paymentText}로 그룹 결제를 진행하시겠습니까?`)) {
+        return;
+    }
+    
+    const discountSelect = document.getElementById('discountSelect');
+    const discountId = discountSelect ? discountSelect.value : null;
+    
+    const requestData = {
+        payment_method: paymentText
+    };
+    
+    if (discountId) {
+        requestData.discount_id = discountId;
+    }
+    
+    fetch(`/api/groups/${groupId}/payment/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`그룹 결제가 완료되었습니다.\n총 금액: ${data.total_amount.toLocaleString()}원`);
+            tableModal.hide();
+            updateTableStatus();
+        } else {
+            alert('그룹 결제 처리 중 오류가 발생했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error processing group payment:', error);
+        alert('그룹 결제 처리 중 오류가 발생했습니다.');
     });
 }
 </script>

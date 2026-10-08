@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.db import models
+from django.db import transaction
 import json
 from .models import Order, OrderItem
 from tables.models import Table
@@ -11,34 +12,38 @@ from menus.models import Menu
 
 def order_list(request):
     from django.utils import timezone
-    
-    # 주문 대기, 주문 확인 단계를 자동으로 조리중으로 변경
-    Order.objects.filter(status__in=['pending', 'confirmed']).update(status='cooking')
-    
+
     status_filter = request.GET.get('status', 'all')
+    if status_filter not in {'all', 'cooking', 'ready', 'completed'}:
+        status_filter = 'all'
     today = timezone.now().date()
-    
+
+    # 주방 화면에는 실제 조리가 필요한 메뉴가 포함된 주문만 표시한다.
+    kitchen_orders = Order.objects.filter(
+        items__menu__requires_cooking=True
+    ).distinct()
+
+    active_cooking_statuses = ['pending', 'confirmed', 'cooking']
     if status_filter == 'cooking':
-        orders = Order.objects.filter(status='cooking')
+        orders = kitchen_orders.filter(status__in=active_cooking_statuses)
     elif status_filter == 'ready':
-        orders = Order.objects.filter(status='ready')
+        orders = kitchen_orders.filter(status='ready')
     elif status_filter == 'completed':
-        # 모든 주문을 paid로 변경 (테스트용)
-        Order.objects.filter(status__in=['cooking', 'ready']).update(status='paid')
-        orders = Order.objects.filter(status='paid', created_at__date=today)
+        # 조회는 상태를 변경하지 않는다. 결제 처리는 테이블 결제 기능만 담당한다.
+        orders = kitchen_orders.filter(status='paid', updated_at__date=today)
     else:
         # 전체: 조리중 + 완료 + 오늘 결제완료
-        orders = Order.objects.filter(
-            models.Q(status__in=['cooking', 'ready']) |
-            models.Q(status='paid', created_at__date=today)
+        orders = kitchen_orders.filter(
+            models.Q(status__in=active_cooking_statuses + ['ready']) |
+            models.Q(status='paid', updated_at__date=today)
         )
     
     orders = orders.order_by('created_at')
     
     # 카운트 계산
-    cooking_count = Order.objects.filter(status='cooking').count()
-    ready_count = Order.objects.filter(status='ready').count()
-    completed_count = Order.objects.filter(status='paid', created_at__date=today).count()
+    cooking_count = kitchen_orders.filter(status__in=active_cooking_statuses).count()
+    ready_count = kitchen_orders.filter(status='ready').count()
+    completed_count = kitchen_orders.filter(status='paid', updated_at__date=today).count()
     
     context = {
         'orders': orders,
@@ -70,7 +75,8 @@ def save_order(request, table_id):
         group = table.get_group()
         order = Order.objects.create(
             table=table,
-            status='pending',
+            # 주방에 표시될 새 주문은 생성 즉시 조리중 상태로 시작한다.
+            status='cooking',
             group_name=group.name if group else '',
         )
         
@@ -143,20 +149,29 @@ def update_menu_item_status(request, item_id):
     status = data.get('status')
     
     if status in ['cooking', 'ready']:
-        order_item.status = status
-        order_item.save()
-        
-        # 주문의 모든 조리 필요 메뉴가 완료되었는지 확인
-        if status == 'ready':
+        if order_item.order.status == 'paid':
+            return JsonResponse({'success': False, 'error': 'Paid order items cannot be changed'}, status=400)
+
+        with transaction.atomic():
+            order_item.status = status
+            order_item.save(update_fields=['status'])
+
+            # 메뉴를 완료/미완료로 바꿀 때마다 주문 상태를 다시 계산한다.
+            # 따라서 완료된 주문에서 메뉴를 되돌려도 주문이 완료로 남지 않는다.
             cooking_items = order_item.order.items.filter(menu__requires_cooking=True)
-            all_ready = all(item.status == 'ready' for item in cooking_items)
-            if all_ready:
-                order_item.order.status = 'ready'
-                order_item.order.table.status = 'cooking'
-                order_item.order.table.save()
-                order_item.order.save()
+            all_ready = cooking_items.exists() and not cooking_items.exclude(status='ready').exists()
+            order_item.order.status = 'ready' if all_ready else 'cooking'
+            order_item.order.save(update_fields=['status', 'updated_at'])
+
+            # 테이블의 기존 의미(조리 진행/완료)는 유지한다.
+            order_item.order.table.status = 'cooking'
+            order_item.order.table.save(update_fields=['status'])
         
-        return JsonResponse({'success': True, 'status': status})
+        return JsonResponse({
+            'success': True,
+            'status': status,
+            'order_status': order_item.order.status,
+        })
     
     return JsonResponse({'success': False, 'error': 'Invalid status'})
 
@@ -205,10 +220,11 @@ def order_detail(request, order_id):
 def kitchen_status_api(request):
     """주방용 실시간 상태 API"""
     # 조리가 필요한 메뉴가 있는 주문만 조회
-    orders = Order.objects.filter(
-        status__in=['cooking', 'ready'],
+    kitchen_orders = Order.objects.filter(
         items__menu__requires_cooking=True
-    ).distinct().order_by('created_at')
+    ).distinct()
+    active_cooking_statuses = ['pending', 'confirmed', 'cooking']
+    orders = kitchen_orders.filter(status__in=active_cooking_statuses + ['ready']).order_by('created_at')
     
     orders_data = []
     for order in orders:
@@ -231,19 +247,16 @@ def kitchen_status_api(request):
         })
     
     # 상태별 카운트
-    cooking_count = Order.objects.filter(
-        status='cooking',
-        items__menu__requires_cooking=True
-    ).distinct().count()
-    
-    ready_count = Order.objects.filter(
-        status='ready',
-        items__menu__requires_cooking=True
-    ).distinct().count()
+    from django.utils import timezone
+    today = timezone.now().date()
+    cooking_count = kitchen_orders.filter(status__in=active_cooking_statuses).count()
+    ready_count = kitchen_orders.filter(status='ready').count()
+    completed_count = kitchen_orders.filter(status='paid', updated_at__date=today).count()
     
     return JsonResponse({
         'orders': orders_data,
         'cooking_count': cooking_count,
         'ready_count': ready_count,
-        'total_count': cooking_count + ready_count
+        'completed_count': completed_count,
+        'total_count': cooking_count + ready_count + completed_count,
     })

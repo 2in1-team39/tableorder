@@ -6,25 +6,25 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-fire"></i> 주방 주문 관리</h2>
     <div>
-        <span class="badge bg-secondary me-2">전체 {{ total_count }}</span>
-        <span class="badge bg-primary me-2">조리중 {{ cooking_count }}</span>
-        <span class="badge bg-success">완료 {{ ready_count }}</span>
+        <span id="total-count-badge" class="badge bg-secondary me-2">전체 {{ total_count }}</span>
+        <span id="cooking-count-badge" class="badge bg-primary me-2">조리중 {{ cooking_count }}</span>
+        <span id="ready-count-badge" class="badge bg-success">완료 {{ ready_count }}</span>
     </div>
 </div>
 
 <!-- 상태 필터 -->
 <div class="mb-3">
     <div class="btn-group" role="group">
-        <a href="?status=all" class="btn {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <a id="all-filter" href="?status=all" class="btn {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
             <i class="fas fa-list"></i> 전체 ({{ total_count }})
         </a>
-        <a href="?status=cooking" class="btn {% if status_filter == 'cooking' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <a id="cooking-filter" href="?status=cooking" class="btn {% if status_filter == 'cooking' %}btn-primary{% else %}btn-outline-primary{% endif %}">
             <i class="fas fa-fire"></i> 조리중 ({{ cooking_count }})
         </a>
-        <a href="?status=ready" class="btn {% if status_filter == 'ready' %}btn-success{% else %}btn-outline-success{% endif %}">
+        <a id="ready-filter" href="?status=ready" class="btn {% if status_filter == 'ready' %}btn-success{% else %}btn-outline-success{% endif %}">
             <i class="fas fa-check"></i> 완료 ({{ ready_count }})
         </a>
-        <a href="?status=completed" class="btn {% if status_filter == 'completed' %}btn-info{% else %}btn-outline-info{% endif %}">
+        <a id="completed-filter" href="?status=completed" class="btn {% if status_filter == 'completed' %}btn-info{% else %}btn-outline-info{% endif %}">
             <i class="fas fa-history"></i> 오늘 완료 ({{ completed_count }})
         </a>
     </div>
@@ -54,7 +54,7 @@
                     <div class="col-md-10">
                         {% for item in order.items.all %}
                             {% if item.menu.requires_cooking %}
-                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded" data-item-id="{{ item.id }}">
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded" data-order-item-id="{{ item.id }}">
                                 <div class="flex-grow-1">
                                     <h6 class="mb-1 menu-name {% if item.status == 'ready' %}text-decoration-line-through text-muted{% endif %}">{{ item.menu.name }} x {{ item.quantity }}</h6>
                                     {% if item.options %}
@@ -102,7 +102,8 @@
 {% block scripts %}
 <script>
 function toggleMenuStatus(itemId) {
-    const badge = document.querySelector(`[data-item-id="${itemId}"]`);
+    const badge = document.querySelector(`.menu-status-badge[data-item-id="${itemId}"]`);
+    if (!badge) return;
     const currentText = badge.textContent.trim();
     const isCooking = currentText.includes('조리중');
     const newStatus = isCooking ? 'ready' : 'cooking';
@@ -125,7 +126,7 @@ function toggleMenuStatus(itemId) {
             badge.title = '클릭하여 상태 변경';
             
             // 메뉴명 요소 찾기
-            const menuNameElement = badge.closest('[data-item-id]').querySelector('.menu-name');
+            const menuNameElement = badge.closest('[data-order-item-id]').querySelector('.menu-name');
             
             if (newStatus === 'cooking') {
                 badge.className = 'badge fs-6 menu-status-badge bg-primary';
@@ -148,16 +149,23 @@ function toggleMenuStatus(itemId) {
     });
 }
 
-let previousOrderCount = 0;
-let lastUpdateTime = Date.now();
+// 첫 API 응답은 기준값으로만 사용한다. 건수는 결제/완료 상태 변화에도
+// 달라질 수 있으므로 새 주문 판단에 사용하지 않는다.
+let knownActiveOrderIds = null;
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', function() {
-    previousOrderCount = document.querySelectorAll('.order-card').length;
     scrollToBottom();
-    
+
+    // 페이지를 열어 둔 상태에서도 주문 ID를 기준으로 새 주문을 감지한다.
+    updateKitchenStatus();
     // 3초마다 실시간 업데이트
     setInterval(updateKitchenStatus, 3000);
+
+    if (sessionStorage.getItem('kitchen-new-order-arrived') === 'true') {
+        sessionStorage.removeItem('kitchen-new-order-arrived');
+        showNewOrderAlert();
+    }
 });
 
 function scrollToBottom() {
@@ -176,46 +184,41 @@ function updateKitchenStatus() {
         .then(response => response.json())
         .then(data => {
             // 카운트 업데이트
-            updateCounts(data.cooking_count, data.ready_count, data.total_count);
+            updateCounts(data.cooking_count, data.ready_count, data.completed_count, data.total_count);
             
-            // 새 주문 감지
-            if (data.total_count > previousOrderCount) {
-                showNewOrderAlert();
-                scrollToBottom();
+            const activeOrderIds = new Set(data.orders.map(order => String(order.id)));
+
+            // 첫 응답은 기존 주문을 기준값으로 등록한다. 이후에만 새 ID를 감지한다.
+            if (knownActiveOrderIds === null) {
+                knownActiveOrderIds = activeOrderIds;
+                return;
             }
-            
-            previousOrderCount = data.total_count;
-            lastUpdateTime = Date.now();
+
+            const hasNewOrder = [...activeOrderIds].some(id => !knownActiveOrderIds.has(id));
+            knownActiveOrderIds = activeOrderIds;
+
+            // 새 주문 카드는 서버 렌더링 화면을 갱신해야 바로 표시된다.
+            // 완료 탭은 새 조리 주문을 표시하지 않으므로 갱신하지 않는다.
+            if (hasNewOrder && ['all', 'cooking'].includes(currentFilter)) {
+                sessionStorage.setItem('kitchen-new-order-arrived', 'true');
+                window.location.reload();
+            }
         })
         .catch(error => {
             console.error('Error updating kitchen status:', error);
         });
 }
 
-function updateCounts(cooking, ready, total) {
-    // 배지 업데이트
-    const badges = document.querySelectorAll('.badge');
-    badges.forEach(badge => {
-        if (badge.textContent.includes('전체')) {
-            badge.textContent = `전체 ${total}`;
-        } else if (badge.textContent.includes('조리중')) {
-            badge.textContent = `조리중 ${cooking}`;
-        } else if (badge.textContent.includes('완료') && !badge.textContent.includes('오늘')) {
-            badge.textContent = `완료 ${ready}`;
-        }
-    });
-    
-    // 필터 버튼 업데이트
-    const filterButtons = document.querySelectorAll('.btn-group a');
-    filterButtons.forEach(btn => {
-        if (btn.textContent.includes('전체')) {
-            btn.innerHTML = `<i class="fas fa-list"></i> 전체 (${total})`;
-        } else if (btn.textContent.includes('조리중')) {
-            btn.innerHTML = `<i class="fas fa-fire"></i> 조리중 (${cooking})`;
-        } else if (btn.textContent.includes('완료') && !btn.textContent.includes('오늘')) {
-            btn.innerHTML = `<i class="fas fa-check"></i> 완료 (${ready})`;
-        }
-    });
+function updateCounts(cooking, ready, completed, total) {
+    // 카운터 전용 요소만 갱신한다. 메뉴별 상태 배지는 절대 변경하지 않는다.
+    document.getElementById('total-count-badge').textContent = `전체 ${total}`;
+    document.getElementById('cooking-count-badge').textContent = `조리중 ${cooking}`;
+    document.getElementById('ready-count-badge').textContent = `완료 ${ready}`;
+
+    document.getElementById('all-filter').innerHTML = `<i class="fas fa-list"></i> 전체 (${total})`;
+    document.getElementById('cooking-filter').innerHTML = `<i class="fas fa-fire"></i> 조리중 (${cooking})`;
+    document.getElementById('ready-filter').innerHTML = `<i class="fas fa-check"></i> 완료 (${ready})`;
+    document.getElementById('completed-filter').innerHTML = `<i class="fas fa-history"></i> 오늘 완료 (${completed})`;
 }
 
 function showNewOrderAlert() {

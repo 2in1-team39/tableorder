@@ -1,3 +1,68 @@
-from django.test import TestCase
+import json
 
-# Create your tests here.
+from django.test import TestCase
+from django.urls import reverse
+
+from menus.models import Menu
+from tables.models import Table
+from .models import Order, OrderItem
+
+
+class KitchenOrderManagementTests(TestCase):
+    def setUp(self):
+        self.table = Table.objects.create(number=1)
+        self.cooked_menu = Menu.objects.create(name='찌개', price=9000, requires_cooking=True)
+        self.drink_menu = Menu.objects.create(name='음료', price=2000, requires_cooking=False)
+
+    def create_order(self, status='cooking', menu=None):
+        order = Order.objects.create(table=self.table, status=status, total_amount=9000)
+        OrderItem.objects.create(
+            order=order,
+            menu=menu or self.cooked_menu,
+            quantity=1,
+            unit_price=(menu or self.cooked_menu).price,
+        )
+        return order
+
+    def test_completed_filter_does_not_change_active_orders_to_paid(self):
+        active_order = self.create_order(status='cooking')
+        paid_order = self.create_order(status='paid')
+
+        response = self.client.get(reverse('orders:list'), {'status': 'completed'})
+
+        self.assertEqual(response.status_code, 200)
+        active_order.refresh_from_db()
+        self.assertEqual(active_order.status, 'cooking')
+        self.assertContains(response, f'data-order-id="{paid_order.id}"')
+        self.assertNotContains(response, f'data-order-id="{active_order.id}"')
+
+    def test_reopening_a_completed_item_reopens_its_order(self):
+        order = self.create_order(status='ready')
+        item = order.items.get()
+        item.status = 'ready'
+        item.save()
+
+        response = self.client.post(
+            reverse('orders:update_menu_status', args=[item.id]),
+            data=json.dumps({'status': 'cooking'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['order_status'], 'cooking')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'cooking')
+
+    def test_kitchen_counts_include_today_paid_orders_but_exclude_non_kitchen_orders(self):
+        self.create_order(status='cooking')
+        self.create_order(status='ready')
+        self.create_order(status='paid')
+        self.create_order(status='paid', menu=self.drink_menu)
+
+        response = self.client.get(reverse('orders:kitchen_status_api'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['cooking_count'], 1)
+        self.assertEqual(response.json()['ready_count'], 1)
+        self.assertEqual(response.json()['completed_count'], 1)
+        self.assertEqual(response.json()['total_count'], 3)

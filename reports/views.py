@@ -7,22 +7,11 @@ from orders.models import Order, OrderItem
 from menus.models import Menu
 
 
-def today_order_change_marker(today):
-    """오늘 주문 목록이나 상태가 바뀌었는지 비교하는 값."""
-    return '|'.join(
-        f'{order_id}:{updated_at.strftime("%Y%m%d%H%M%S%f")}'
-        for order_id, updated_at in Order.objects.filter(
-            created_at__date=today
-        ).order_by('id').values_list('id', 'updated_at')
-    )
-
-
 def sales_dashboard(request):
     """매출 대시보드"""
     today = timezone.now().date()
-    paid_orders = Order.objects.filter(created_at__date=today, status='paid')
-    # 주문 내역은 결제 전 주문도 포함한다. 매출 집계만 결제 완료 주문 기준이다.
-    all_today_orders = Order.objects.filter(created_at__date=today)
+    # 매출은 주문 생성일이 아니라 실제 결제일을 기준으로 집계한다.
+    paid_orders = Order.objects.filter(paid_at__date=today, status='paid')
 
     # 오늘 매출
     today_sales = paid_orders.aggregate(total=Sum('total_amount'))['total'] or 0
@@ -47,33 +36,23 @@ def sales_dashboard(request):
         )['total'] or 0
     )
 
-    # 주문이 생성된 순서대로 표시한다. group_name은 그룹을 해제해도 주문에 남는다.
-    sales_orders = all_today_orders.select_related('table').prefetch_related(
+    # 결제 완료 내역만 결제 시각 순으로 표시한다.
+    sales_orders = paid_orders.select_related('table').prefetch_related(
         'items__menu'
-    ).order_by('created_at', 'id')
+    ).order_by('paid_at', 'id')
     
     context = {
         'today_sales': today_sales,
         'today_discount': today_discount,
         'today_net_sales': today_net_sales,
         'today_orders': today_orders,
-        'today_total_orders': all_today_orders.count(),
-        'today_order_change_marker': today_order_change_marker(today),
+        'today_total_orders': paid_orders.count(),
         'today_card_sales': today_card_sales,
         'today_cash_sales': today_cash_sales,
         'sales_orders': sales_orders,
     }
     
     return render(request, 'reports/dashboard.html', context)
-
-
-def today_order_count_api(request):
-    """매출관리 화면이 새로 등록된 오늘 주문을 감지하기 위한 경량 API."""
-    today = timezone.now().date()
-    return JsonResponse({
-        'count': Order.objects.filter(created_at__date=today).count(),
-        'marker': today_order_change_marker(today),
-    })
 
 def daily_sales_api(request):
     """일별 매출 API"""
@@ -86,7 +65,7 @@ def daily_sales_api(request):
         date = start_date + timedelta(days=i)
         
         orders = Order.objects.filter(
-            created_at__date=date,
+            paid_at__date=date,
             status='paid'
         )
         
@@ -121,7 +100,7 @@ def menu_sales_api(request):
     from django.db.models import F
     
     menu_sales = OrderItem.objects.filter(
-        order__created_at__date__range=[start_date, end_date],
+        order__paid_at__date__range=[start_date, end_date],
         order__status='paid'
     ).values(
         'menu__name'
@@ -140,8 +119,8 @@ def hourly_sales_api(request):
     hourly_data = []
     for hour in range(24):
         orders = Order.objects.filter(
-            created_at__date=target_date,
-            created_at__hour=hour,
+            paid_at__date=target_date,
+            paid_at__hour=hour,
             status='paid'
         )
         
@@ -181,8 +160,8 @@ def monthly_sales_api(request):
             month_end = datetime(target_year, target_month + 1, 1).date()
         
         orders = Order.objects.filter(
-            created_at__date__gte=month_start,
-            created_at__date__lt=month_end,
+            paid_at__date__gte=month_start,
+            paid_at__date__lt=month_end,
             status='paid'
         )
         

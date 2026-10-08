@@ -1,5 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
+from datetime import timedelta
 
 from menus.models import Menu
 from orders.models import Order, OrderItem
@@ -18,6 +20,7 @@ class SalesDashboardOrderListTests(TestCase):
             total_amount=9000 * quantity,
             memo=memo,
             payment_method='카드' if status == 'paid' else '',
+            paid_at=timezone.now() if status == 'paid' else None,
         )
         OrderItem.objects.create(
             order=order,
@@ -27,26 +30,26 @@ class SalesDashboardOrderListTests(TestCase):
         )
         return order
 
-    def test_dashboard_lists_paid_and_unpaid_orders_by_order_number(self):
+    def test_dashboard_lists_only_orders_paid_today(self):
         unpaid_order = self.create_order('cooking', 2, '면 많이')
         paid_order = self.create_order('paid', 1)
 
         response = self.client.get(reverse('reports:dashboard'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['today_total_orders'], 2)
-        self.assertContains(response, f'#{unpaid_order.id}')
+        self.assertEqual(response.context['today_total_orders'], 1)
+        self.assertNotContains(response, f'#{unpaid_order.id}')
         self.assertContains(response, f'#{paid_order.id}')
-        self.assertContains(response, '미결제')
         self.assertContains(response, '결제완료')
         self.assertContains(response, '칼국수')
-        self.assertContains(response, '면 많이')
 
-    def test_today_order_count_api_includes_unpaid_orders(self):
-        self.create_order('cooking', 1)
-        self.create_order('paid', 1)
+    def test_dashboard_uses_payment_date_not_order_creation_date(self):
+        order = self.create_order('paid', 1)
+        Order.objects.filter(pk=order.pk).update(
+            created_at=timezone.now() - timedelta(days=1)
+        )
 
-        response = self.client.get(reverse('reports:today_order_count_api'))
+        response = self.client.get(reverse('reports:dashboard'))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['count'], 2)
+        self.assertContains(response, f'#{order.id}')
+        self.assertEqual(response.context['today_orders'], 1)

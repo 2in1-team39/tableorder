@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
 import json
 from .models import Table
 from orders.models import Order
@@ -101,7 +102,8 @@ def process_payment(request, table_id):
             order.group_name = group.name
         order.payment_method = payment_method or ''
         order.status = 'paid'
-        order.save(update_fields=['group_name', 'payment_method', 'status', 'updated_at'])
+        order.paid_at = timezone.now()
+        order.save(update_fields=['group_name', 'payment_method', 'status', 'paid_at', 'updated_at'])
     
     # 테이블 상태를 '결제 완료'로 변경 (유지)
     table.status = 'paid'
@@ -317,7 +319,8 @@ def group_payment(request, group_id):
             order.group_name = group.name
             order.payment_method = payment_method
             order.status = 'paid'
-            order.save(update_fields=['group_name', 'payment_method', 'status', 'updated_at'])
+            order.paid_at = timezone.now()
+            order.save(update_fields=['group_name', 'payment_method', 'status', 'paid_at', 'updated_at'])
         
         # 모든 테이블 상태를 결제 완료로 변경 (유지)
         for table in group_tables:

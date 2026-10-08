@@ -5,6 +5,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.db import models
 from django.db import transaction
+from django.utils import timezone
 import json
 from .models import Order, OrderItem
 from tables.models import Table
@@ -163,7 +164,11 @@ def update_order_status(request, order_id):
     
     if new_status in dict(Order.STATUS_CHOICES):
         order.status = new_status
-        order.save()
+        if new_status == 'paid' and order.paid_at is None:
+            order.paid_at = timezone.now()
+            order.save(update_fields=['status', 'paid_at', 'updated_at'])
+        else:
+            order.save()
         
         # 테이블 상태도 함께 업데이트
         if new_status in ['cooking', 'ready']:

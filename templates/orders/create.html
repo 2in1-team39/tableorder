@@ -14,11 +14,11 @@
     <div class="col-md-8">
         <h5>메뉴 선택</h5>
         {% for menu in menus %}
-        <div class="card mb-3 menu-item" data-menu-id="{{ menu.id }}">
+        <div class="card mb-3 menu-item {% if menu.is_sold_out %}border-danger bg-light{% endif %}" data-menu-id="{{ menu.id }}">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <h6 class="card-title">{{ menu.name }}</h6>
+                        <h6 class="card-title">{{ menu.name }} {% if menu.is_sold_out %}<span class="badge bg-danger">품절</span>{% endif %}</h6>
                         <p class="card-text small text-muted">{{ menu.description }}</p>
                         <div class="h6 text-primary">{{ menu.price|floatformat:0 }}원</div>
                         
@@ -35,7 +35,7 @@
                             <div class="form-check form-check-inline">
                                 <input class="form-check-input" type="checkbox" 
                                        id="option_{{ menu.id }}_{{ forloop.counter }}" 
-                                       value="{{ option }}">
+                                       value="{{ option }}" {% if menu.is_sold_out %}disabled{% endif %}>
                                 <label class="form-check-label small" for="option_{{ menu.id }}_{{ forloop.counter }}">
                                     {{ option }}
                                 </label>
@@ -46,6 +46,9 @@
                     </div>
                     
                     <div class="col-md-4 text-end">
+                        {% if menu.is_sold_out %}
+                        <span class="text-danger fw-bold">주문 불가</span>
+                        {% else %}
                         <div class="d-flex align-items-center justify-content-end gap-2">
                             <button class="btn btn-outline-secondary btn-sm" onclick="changeQuantity({{ menu.id }}, -1)">
                                 <i class="fas fa-minus"></i>
@@ -55,6 +58,7 @@
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -95,12 +99,14 @@ let menus = {
     {{ menu.id }}: {
         name: '{{ menu.name }}',
         price: {{ menu.price }},
-        min_order: {{ menu.min_order }}
+        min_order: {{ menu.min_order }},
+        is_sold_out: {{ menu.is_sold_out|yesno:"true,false" }}
     }{% if not forloop.last %},{% endif %}
     {% endfor %}
 };
 
 function changeQuantity(menuId, change) {
+    if (menus[menuId].is_sold_out) return;
     if (!cart[menuId]) {
         cart[menuId] = { quantity: 0, options: [] };
     }

@@ -125,3 +125,19 @@ class KitchenOrderManagementTests(TestCase):
         report_response = self.client.get(reverse('reports:dashboard'))
         self.assertContains(report_response, f'#{order_id}')
         self.assertContains(report_response, '미결제')
+
+    def test_sold_out_menu_cannot_be_saved_as_an_order(self):
+        self.cooked_menu.is_sold_out = True
+        self.cooked_menu.save()
+
+        response = self.client.post(
+            reverse('orders:save', args=[self.table.id]),
+            data=json.dumps({
+                'items': [{'menu_id': self.cooked_menu.id, 'quantity': 1, 'options': []}],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertFalse(response.json()['success'])
+        self.assertIn('품절', response.json()['error'])
+        self.assertFalse(Order.objects.exists())

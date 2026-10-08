@@ -120,6 +120,12 @@ def save_order(request, table_id):
                     continue
                 
                 menu = Menu.objects.get(id=menu_id)
+                if not menu.is_active:
+                    order.delete()
+                    return JsonResponse({'success': False, 'error': f'{menu.name} 메뉴는 현재 주문할 수 없습니다.'})
+                if menu.is_sold_out:
+                    order.delete()
+                    return JsonResponse({'success': False, 'error': f'{menu.name} 메뉴는 품절되었습니다.'})
                 
                 order_item = OrderItem.objects.create(
                     order=order,

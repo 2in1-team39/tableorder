@@ -8,9 +8,12 @@
 <div class="row">
     {% for menu in menus %}
     <div class="col-md-6 col-lg-4 mb-3">
-        <div class="card">
+        <div class="card {% if menu.is_sold_out %}border-danger{% endif %}" data-menu-id="{{ menu.id }}">
             <div class="card-body">
-                <h5 class="card-title">{{ menu.name }}</h5>
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <h5 class="card-title">{{ menu.name }}</h5>
+                    <span class="sold-out-badge badge {% if menu.is_sold_out %}bg-danger{% else %}bg-secondary d-none{% endif %}">품절</span>
+                </div>
                 <p class="card-text">{{ menu.description }}</p>
                 <div class="d-flex justify-content-between align-items-center">
                     <span class="h5 text-primary">{{ menu.price|floatformat:0 }}원</span>
@@ -23,6 +26,15 @@
                     <small class="text-muted">옵션: {{ menu.options|join:", " }}</small>
                 </div>
                 {% endif %}
+                <button class="sold-out-toggle btn btn-sm {% if menu.is_sold_out %}btn-outline-success{% else %}btn-outline-danger{% endif %} mt-3"
+                        data-menu-id="{{ menu.id }}"
+                        onclick="toggleSoldOut({{ menu.id }})">
+                    {% if menu.is_sold_out %}
+                    <i class="fas fa-check"></i> 품절 해제
+                    {% else %}
+                    <i class="fas fa-ban"></i> 품절 표시
+                    {% endif %}
+                </button>
             </div>
         </div>
     </div>
@@ -32,4 +44,33 @@
     </div>
     {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSoldOut(menuId) {
+    const button = document.querySelector(`.sold-out-toggle[data-menu-id="${menuId}"]`);
+    if (!button) return;
+    button.disabled = true;
+
+    fetch(`/menus/${menuId}/toggle-sold-out/`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) throw new Error('Failed to update sold-out state');
+
+            const card = document.querySelector(`.card[data-menu-id="${menuId}"]`);
+            const badge = card.querySelector('.sold-out-badge');
+            card.classList.toggle('border-danger', data.is_sold_out);
+            badge.classList.toggle('bg-danger', data.is_sold_out);
+            badge.classList.toggle('bg-secondary', !data.is_sold_out);
+            badge.classList.toggle('d-none', !data.is_sold_out);
+            button.className = `sold-out-toggle btn btn-sm ${data.is_sold_out ? 'btn-outline-success' : 'btn-outline-danger'} mt-3`;
+            button.innerHTML = data.is_sold_out
+                ? '<i class="fas fa-check"></i> 품절 해제'
+                : '<i class="fas fa-ban"></i> 품절 표시';
+        })
+        .catch(() => alert('품절 상태 변경에 실패했습니다.'))
+        .finally(() => { button.disabled = false; });
+}
+</script>
 {% endblock %}

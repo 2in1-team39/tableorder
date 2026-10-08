@@ -12,6 +12,7 @@ class Menu(models.Model):
     )
     min_order = models.IntegerField(default=1, verbose_name='최소 주문 수량')
     is_active = models.BooleanField(default=True, verbose_name='활성 상태')
+    is_sold_out = models.BooleanField(default=False, verbose_name='품절')
     requires_cooking = models.BooleanField(default=True, verbose_name='주방 조리 필요')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
@@ -23,6 +24,12 @@ class Menu(models.Model):
     
     def __str__(self):
         return f'{self.name} ({self.price:,}원)'
+
+    def save(self, *args, **kwargs):
+        # 관리자 폼에서 선택 사항인 JSON 옵션을 비우면 빈 목록으로 유지한다.
+        if self.options is None:
+            self.options = []
+        super().save(*args, **kwargs)
 
 class MenuOption(models.Model):
     menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name='menu_options', verbose_name='메뉴')

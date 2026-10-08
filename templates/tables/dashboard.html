@@ -329,19 +329,19 @@ let modalCart = {};
 let modalMenus = {};
 
 function loadMenusForModal(tableId) {
-    // 메뉴 데이터 직접 설정
-    const menus = [
-        { id: 1, name: '해물칼국수', price: 10000, description: '신선한 해물이 들어간 칼국수', options: ['고추빼고', '면 많이'], min_order: 1 },
-        { id: 2, name: '비빔칼국수', price: 8000, description: '매콤달콤한 비빔칼국수', options: [], min_order: 2 },
-        { id: 3, name: '공기밥', price: 1000, description: '갓 지은 따뜻한 밥', options: [], min_order: 1 },
-        { id: 4, name: '도토리묵', price: 8000, description: '쪽깃한 도토리묵', options: [], min_order: 1 },
-        { id: 5, name: '편육', price: 12000, description: '부드러운 수육', options: [], min_order: 1 }
-    ];
-    
-    let menuHtml = '';
-    modalMenus = {};
-    
-    menus.forEach(menu => {
+    const menuList = document.getElementById('menu-list');
+    menuList.innerHTML = '<div class="text-center text-muted py-3">메뉴를 불러오는 중...</div>';
+
+    fetch('/menus/api/orderable/')
+    .then(response => {
+        if (!response.ok) throw new Error('Failed to load menus');
+        return response.json();
+    })
+    .then(menus => {
+        let menuHtml = '';
+        modalMenus = {};
+
+        menus.forEach(menu => {
         modalMenus[menu.id] = menu;
         
         let optionsHtml = '';
@@ -351,7 +351,7 @@ function loadMenusForModal(tableId) {
                     <small class="text-muted">옵션:</small>
                     ${menu.options.map((option, index) => `
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" value="${option}" id="opt${menu.id}_${index}">
+                            <input class="form-check-input" type="checkbox" value="${option}" id="opt${menu.id}_${index}" ${menu.is_sold_out ? 'disabled' : ''}>
                             <label class="form-check-label small" for="opt${menu.id}_${index}">${option}</label>
                         </div>
                     `).join('')}
@@ -360,16 +360,17 @@ function loadMenusForModal(tableId) {
         }
         
         menuHtml += `
-            <div class="menu-item mb-3 p-3 border rounded" data-menu-id="${menu.id}">
+            <div class="menu-item mb-3 p-3 border rounded ${menu.is_sold_out ? 'border-danger bg-light' : ''}" data-menu-id="${menu.id}">
                 <div class="row align-items-center">
                     <div class="col-8">
-                        <h6>${menu.name}</h6>
+                        <h6>${menu.name} ${menu.is_sold_out ? '<span class="badge bg-danger">품절</span>' : ''}</h6>
                         <p class="small text-muted">${menu.description}</p>
                         <div class="h6 text-primary">${menu.price.toLocaleString()}원</div>
                         ${menu.min_order > 1 ? `<div class="badge bg-warning text-dark mb-2">${menu.min_order}인분부터 주문 가능</div>` : ''}
                         ${optionsHtml}
                     </div>
                     <div class="col-4 text-end">
+                        ${menu.is_sold_out ? '<span class="text-danger fw-bold">주문 불가</span>' : `
                         <div class="d-flex align-items-center justify-content-end gap-2">
                             <button class="btn btn-outline-secondary btn-sm" onclick="changeModalQuantity(${menu.id}, -1)">
                                 <i class="fas fa-minus"></i>
@@ -379,18 +380,25 @@ function loadMenusForModal(tableId) {
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
+                        `}
                     </div>
                 </div>
             </div>
         `;
+        });
+
+        menuList.innerHTML = menuHtml || '<p class="text-center text-muted py-3">주문 가능한 메뉴가 없습니다.</p>';
+        modalCart = {};
+        updateModalCart();
+    })
+    .catch(error => {
+        console.error('Error loading menus:', error);
+        menuList.innerHTML = '<p class="text-center text-danger py-3">메뉴를 불러오지 못했습니다.</p>';
     });
-    
-    document.getElementById('menu-list').innerHTML = menuHtml;
-    modalCart = {};
-    updateModalCart();
 }
 
 function changeModalQuantity(menuId, change) {
+    if (!modalMenus[menuId] || modalMenus[menuId].is_sold_out) return;
     if (!modalCart[menuId]) {
         modalCart[menuId] = { quantity: 0, options: [] };
     }

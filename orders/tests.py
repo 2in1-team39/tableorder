@@ -63,6 +63,36 @@ class KitchenOrderManagementTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, 'cooking')
 
+    def test_table_is_ready_only_after_all_its_cooking_items_are_ready(self):
+        second_menu = Menu.objects.create(name='만두', price=5000, requires_cooking=True)
+        order = Order.objects.create(table=self.table, status='cooking', total_amount=14000)
+        first_item = OrderItem.objects.create(
+            order=order, menu=self.cooked_menu, quantity=1, unit_price=9000
+        )
+        second_item = OrderItem.objects.create(
+            order=order, menu=second_menu, quantity=1, unit_price=5000
+        )
+
+        first_response = self.client.post(
+            reverse('orders:update_menu_status', args=[first_item.id]),
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(first_response.json()['order_status'], 'cooking')
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.status, 'ordered')
+
+        second_response = self.client.post(
+            reverse('orders:update_menu_status', args=[second_item.id]),
+            data=json.dumps({'status': 'ready'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(second_response.json()['order_status'], 'ready')
+        self.table.refresh_from_db()
+        self.assertEqual(self.table.status, 'cooking')
+
     def test_kitchen_counts_include_today_paid_orders_but_exclude_non_kitchen_orders(self):
         self.create_order(status='cooking')
         self.create_order(status='ready')

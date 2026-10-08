@@ -10,6 +10,26 @@ from .models import Order, OrderItem
 from tables.models import Table
 from menus.models import Menu
 
+
+def update_table_kitchen_status(table):
+    """테이블의 모든 미결제 조리 메뉴 상태로 테이블 표시 상태를 계산한다."""
+    cooking_items = OrderItem.objects.filter(
+        order__table=table,
+        menu__requires_cooking=True,
+    ).exclude(order__status='paid')
+
+    # 하나라도 조리 중인 메뉴가 있으면 테이블은 주문 완료 상태다.
+    # 조리 대상 메뉴가 모두 완료됐을 때에만 조리 완료 상태로 표시한다.
+    if cooking_items.exists() and not cooking_items.exclude(status='ready').exists():
+        new_status = 'cooking'
+    else:
+        new_status = 'ordered'
+
+    if table.status != new_status:
+        table.status = new_status
+        table.save(update_fields=['status'])
+
+
 def order_list(request):
     from django.utils import timezone
 
@@ -132,11 +152,11 @@ def update_order_status(request, order_id):
         order.save()
         
         # 테이블 상태도 함께 업데이트
-        if new_status == 'ready':
-            order.table.status = 'cooking'
+        if new_status in ['cooking', 'ready']:
+            update_table_kitchen_status(order.table)
         elif new_status == 'paid':
             order.table.status = 'paid'
-        order.table.save()
+            order.table.save()
         
         return JsonResponse({'success': True, 'status': order.status})
     
@@ -164,9 +184,7 @@ def update_menu_item_status(request, item_id):
             order_item.order.status = 'ready' if all_ready else 'cooking'
             order_item.order.save(update_fields=['status', 'updated_at'])
 
-            # 테이블의 기존 의미(조리 진행/완료)는 유지한다.
-            order_item.order.table.status = 'cooking'
-            order_item.order.table.save(update_fields=['status'])
+            update_table_kitchen_status(order_item.order.table)
         
         return JsonResponse({
             'success': True,
@@ -195,7 +213,11 @@ def cancel_order_item(request, item_id):
     if remaining_items.exists():
         total_amount = sum(item.get_total_price() for item in remaining_items)
         order.total_amount = total_amount
-        order.save()
+        cooking_items = remaining_items.filter(menu__requires_cooking=True)
+        all_ready = cooking_items.exists() and not cooking_items.exclude(status='ready').exists()
+        order.status = 'ready' if all_ready else 'cooking'
+        order.save(update_fields=['total_amount', 'status', 'updated_at'])
+        update_table_kitchen_status(order.table)
     else:
         # 모든 항목이 취소되면 주문 자체를 삭제
         table = order.table

@@ -11,6 +11,7 @@ class Menu(models.Model):
         help_text='선택 사항입니다. 예: ["고추빼고", "면 많이"]',
     )
     min_order = models.IntegerField(default=1, verbose_name='최소 주문 수량')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='표시 순서')
     is_active = models.BooleanField(default=True, verbose_name='활성 상태')
     is_sold_out = models.BooleanField(default=False, verbose_name='품절')
     requires_cooking = models.BooleanField(default=True, verbose_name='주방 조리 필요')
@@ -20,7 +21,7 @@ class Menu(models.Model):
     class Meta:
         verbose_name = '메뉴'
         verbose_name_plural = '메뉴'
-        ordering = ['name']
+        ordering = ['sort_order', 'name']
     
     def __str__(self):
         return f'{self.name} ({self.price:,}원)'

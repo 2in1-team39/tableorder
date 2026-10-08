@@ -20,7 +20,7 @@ def toggle_sold_out(request, menu_id):
 
 def orderable_menus_api(request):
     """주문 화면용 메뉴 목록. 품절 메뉴도 표시하되 선택은 막는다."""
-    menus = Menu.objects.filter(is_active=True).order_by('name')
+    menus = Menu.objects.filter(is_active=True).order_by('sort_order', 'name')
     return JsonResponse([
         {
             'id': menu.id,
@@ -29,6 +29,7 @@ def orderable_menus_api(request):
             'description': menu.description,
             'options': menu.options or [],
             'min_order': menu.min_order,
+            'sort_order': menu.sort_order,
             'is_sold_out': menu.is_sold_out,
         }
         for menu in menus

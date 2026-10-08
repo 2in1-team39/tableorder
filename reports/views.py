@@ -1,8 +1,10 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
+import csv
+from urllib.parse import quote
 from orders.models import Order, OrderItem
 from menus.models import Menu
 
@@ -183,3 +185,60 @@ def monthly_sales_api(request):
         })
     
     return JsonResponse(monthly_data, safe=False)
+
+
+def order_details_export(request):
+    """모든 주문과 각 주문의 메뉴 상세를 한 행씩 CSV로 내보낸다."""
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    filename = f'주문상세내역_{timezone.localdate().isoformat()}.csv'
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    # Excel에서 한글을 올바르게 인식하도록 UTF-8 BOM을 추가한다.
+    response.write('\ufeff')
+
+    writer = csv.writer(response)
+    writer.writerow([
+        '주문번호', '주문일시', '주문수정일시', '주문상태',
+        '테이블번호', '좌석수', '테이블메모', '단체손님', '주문메모',
+        '결제방법', '결제일시', '주문금액', '할인금액', '최종금액',
+        '상세번호', '메뉴명', '단가', '수량', '상세금액', '선택옵션',
+        '조리상태', '상세생성일시',
+    ])
+
+    orders = Order.objects.select_related('table').prefetch_related(
+        'items__menu'
+    ).order_by('-created_at', '-id')
+    for order in orders:
+        order_values = [
+            order.id,
+            timezone.localtime(order.created_at).strftime('%Y-%m-%d %H:%M:%S'),
+            timezone.localtime(order.updated_at).strftime('%Y-%m-%d %H:%M:%S'),
+            order.get_status_display(),
+            order.table.number,
+            order.table.seats,
+            order.table.memo,
+            order.group_name,
+            order.memo,
+            order.payment_method,
+            timezone.localtime(order.paid_at).strftime('%Y-%m-%d %H:%M:%S') if order.paid_at else '',
+            order.total_amount,
+            order.discount,
+            order.get_final_amount(),
+        ]
+        items = list(order.items.all())
+
+        # 주문 상세가 없는 예외적인 주문도 주문 내역 자체는 내보낸다.
+        if not items:
+            writer.writerow(order_values + [''] * 8)
+            continue
+
+        for item in items:
+            writer.writerow(order_values + [
+                item.id,
+                item.menu.name,
+                item.unit_price,
+                item.quantity,
+                item.get_total_price(),
+                ', '.join(item.options),
+                item.get_status_display(),
+                timezone.localtime(item.created_at).strftime('%Y-%m-%d %H:%M:%S'),
+            ])

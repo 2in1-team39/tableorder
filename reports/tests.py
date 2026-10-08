@@ -54,3 +54,23 @@ class SalesDashboardOrderListTests(TestCase):
 
         self.assertContains(response, f'#{order.id}')
         self.assertEqual(response.context['today_orders'], 1)
+
+    def test_order_details_export_contains_order_and_item_information(self):
+        self.table.memo = '창가 테이블'
+        self.table.save()
+        order = self.create_order('paid', 2, '고객 요청 사항')
+        item = order.items.get()
+        item.options = ['곱빼기', '김치 많이']
+        item.save()
+
+        response = self.client.get(reverse('reports:order_details_export'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8-sig')
+        content = response.content.decode('utf-8-sig')
+        self.assertIn('주문번호', content)
+        self.assertIn(str(order.id), content)
+        self.assertIn('창가 테이블', content)
+        self.assertIn('고객 요청 사항', content)
+        self.assertIn('칼국수', content)
+        self.assertIn('곱빼기, 김치 많이', content)

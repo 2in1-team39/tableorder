@@ -161,7 +161,7 @@ let tableModal;
 document.addEventListener('DOMContentLoaded', function() {
     tableModal = new bootstrap.Modal(document.getElementById('tableModal'));
     
-    // 실시간 업데이트 비활성화 (결제완룼 상태 유지를 위해)
+    // 실시간 업데이트 비활성화 (결제완료 상태 유지를 위해)
     // setInterval(updateTableStatus, 2000);
     
     // 그룹 모달 열릴 때 데이터 로드
@@ -206,7 +206,7 @@ function updateTableStatus() {
                     const statusConfig = {
                         'empty': { text: '빈 테이블', class: 'bg-secondary' },
                         'ordered': { text: '주문 완료', class: 'bg-warning' },
-                        'cooking': { text: '조리 완룼', class: 'bg-danger' },
+                        'cooking': { text: '조리 완료', class: 'bg-danger' },
                         'paid': { text: '결제 완료', class: 'bg-info' }
                     };
                     
@@ -545,8 +545,8 @@ function updateSingleTable(tableId, newStatus) {
         const statusConfig = {
             'empty': { text: '빈 테이블', class: 'bg-secondary' },
             'ordered': { text: '주문 완료', class: 'bg-warning' },
-            'cooking': { text: '조리 완룼', class: 'bg-danger' },
-            'paid': { text: '결제 완룼', class: 'bg-info' }
+            'cooking': { text: '조리 완료', class: 'bg-danger' },
+            'paid': { text: '결제 완료', class: 'bg-info' }
         };
         
         const config = statusConfig[newStatus] || { text: newStatus, class: 'bg-primary' };
@@ -595,7 +595,7 @@ function cycleTableStatus(tableId, currentStatus) {
     
     const nextStatus = statusCycle[currentStatus] || 'empty';
     
-    // 결제완룼에서 빈 테이블로 변경 시 확인
+    // 결제완료에서 빈 테이블로 변경 시 확인
     if (currentStatus === 'paid' && nextStatus === 'empty') {
         if (!confirm('테이블을 비우시겠습니까?')) {
             return;

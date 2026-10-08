@@ -27,7 +27,7 @@ def order_list(request):
         Order.objects.filter(status__in=['cooking', 'ready']).update(status='paid')
         orders = Order.objects.filter(status='paid', created_at__date=today)
     else:
-        # 전체: 조리중 + 완료 + 오늘 결제완룼
+        # 전체: 조리중 + 완료 + 오늘 결제완료
         orders = Order.objects.filter(
             models.Q(status__in=['cooking', 'ready']) |
             models.Q(status='paid', created_at__date=today)

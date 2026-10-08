@@ -661,6 +661,33 @@ function cancelOrderItem(itemId) {
     });
 }
 
+function deleteOrder(orderId) {
+    if (!confirm('이 주문 전체를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+        return;
+    }
+
+    fetch(`/orders/delete/${orderId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('주문이 삭제되었습니다.');
+            tableModal.hide();
+            setTimeout(() => showTableDetail(currentTableId), 300);
+        } else {
+            alert(data.error || '주문 삭제에 실패했습니다.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('주문 삭제에 실패했습니다.');
+    });
+}
+
 function loadGroupManagement() {
     // 테이블 선택 체크박스 로드
     fetch('/api/status/')

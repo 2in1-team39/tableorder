@@ -41,3 +41,15 @@ class TableStatusApiTests(TestCase):
         group.delete()
         order.refresh_from_db()
         self.assertEqual(order.group_name, '단체손님 1')
+
+    def test_unpaid_order_can_be_deleted_from_table_detail(self):
+        table = Table.objects.create(number=1, status='ordered')
+        order = Order.objects.create(table=table, status='cooking', total_amount=10000)
+
+        response = self.client.post(reverse('orders:delete', args=[order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        self.assertFalse(Order.objects.filter(pk=order.id).exists())
+        table.refresh_from_db()
+        self.assertEqual(table.status, 'empty')

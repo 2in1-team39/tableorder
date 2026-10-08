@@ -78,6 +78,9 @@
                             </div>
                             <hr class="my-1">
                             <div class="text-end">
+                                <button class="btn btn-sm btn-outline-danger me-2" onclick="deleteOrder({{ order.id }})">
+                                    <i class="fas fa-trash"></i> 주문 삭제
+                                </button>
                                 <strong class="text-primary">{{ order.get_final_amount|floatformat:0 }}원</strong>
                             </div>
                         </div>

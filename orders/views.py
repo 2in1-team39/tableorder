@@ -255,6 +255,30 @@ def cancel_order_item(request, item_id):
     
     return JsonResponse({'success': True})
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def delete_order(request, order_id):
+    """미결제 주문 전체를 삭제한다."""
+    order = get_object_or_404(Order, id=order_id)
+    if order.status == 'paid':
+        return JsonResponse(
+            {'success': False, 'error': '결제 완료 주문은 삭제할 수 없습니다.'},
+            status=400,
+        )
+
+    table = order.table
+    order.delete()
+
+    remaining_orders = table.orders.exclude(status='paid')
+    if remaining_orders.exists():
+        update_table_kitchen_status(table)
+    else:
+        table.status = 'paid' if table.orders.filter(status='paid').exists() else 'empty'
+        table.save(update_fields=['status'])
+
+    return JsonResponse({'success': True})
+
 def order_detail(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'orders/detail.html', {'order': order})

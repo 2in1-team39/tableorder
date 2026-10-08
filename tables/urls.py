@@ -8,6 +8,7 @@ urlpatterns = [
     path('api/status/', views.table_status_api, name='status_api'),
     path('api/update/<int:table_id>/', views.update_table_status, name='update_status'),
     path('api/memo/<int:table_id>/', views.update_table_memo, name='update_memo'),
+    path('api/layout/<int:table_id>/', views.update_table_layout, name='update_layout'),
     path('detail/<int:table_id>/', views.table_detail, name='detail'),
     path('payment/<int:table_id>/', views.process_payment, name='process_payment'),
     path('api/groups/', views.groups_api, name='groups_api'),

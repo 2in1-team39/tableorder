@@ -26,6 +26,11 @@ def table_status_api(request):
             'status': table.status,
             'seats': table.seats,
             'memo': table.memo,
+            'layout_x': table.layout_x,
+            'layout_y': table.layout_y,
+            'layout_width': table.layout_width,
+            'layout_height': table.layout_height,
+            'layout_shape': table.layout_shape,
             'group_name': group.name if group else None,
             'group_id': group.id if group else None
         })
@@ -67,6 +72,41 @@ def update_table_memo(request, table_id):
     table.memo = memo
     table.save(update_fields=['memo', 'updated_at'])
     return JsonResponse({'success': True, 'memo': table.memo})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_table_layout(request, table_id):
+    """테이블 현황 화면에서 편집한 위치와 모양을 저장한다."""
+    table = get_object_or_404(Table, id=table_id)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': '요청 형식이 올바르지 않습니다.'}, status=400)
+
+    fields = {
+        'layout_x': (0, 100),
+        'layout_y': (0, 100),
+        'layout_width': (100, 320),
+        'layout_height': (80, 240),
+    }
+    updates = {}
+    for field, (minimum, maximum) in fields.items():
+        value = data.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+            return JsonResponse({'success': False, 'error': '배치 값이 올바르지 않습니다.'}, status=400)
+        updates[field] = value
+
+    layout_shape = data.get('layout_shape')
+    valid_shapes = dict(Table.TABLE_SHAPE_CHOICES)
+    if layout_shape not in valid_shapes:
+        return JsonResponse({'success': False, 'error': '테이블 모양이 올바르지 않습니다.'}, status=400)
+
+    for field, value in updates.items():
+        setattr(table, field, value)
+    table.layout_shape = layout_shape
+    table.save(update_fields=[*updates.keys(), 'layout_shape', 'updated_at'])
+    return JsonResponse({'success': True, **updates, 'layout_shape': table.layout_shape})
 
 def table_detail(request, table_id):
     table = get_object_or_404(Table, id=table_id)

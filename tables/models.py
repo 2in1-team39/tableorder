@@ -1,6 +1,11 @@
 from django.db import models
 
 class Table(models.Model):
+    TABLE_SHAPE_CHOICES = [
+        ('rounded', '둥근 사각형'),
+        ('rectangle', '사각형'),
+        ('circle', '원형'),
+    ]
     STATUS_CHOICES = [
         ('empty', '빈 테이블'),
         ('ordered', '주문 완료'),
@@ -12,6 +17,11 @@ class Table(models.Model):
     seats = models.IntegerField(default=4, verbose_name='좌석 수')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='empty', verbose_name='상태')
     memo = models.TextField(blank=True, default='', max_length=500, verbose_name='테이블 메모')
+    layout_x = models.PositiveSmallIntegerField(default=4, verbose_name='배치 가로 위치(%)')
+    layout_y = models.PositiveSmallIntegerField(default=4, verbose_name='배치 세로 위치(%)')
+    layout_width = models.PositiveSmallIntegerField(default=180, verbose_name='배치 너비')
+    layout_height = models.PositiveSmallIntegerField(default=120, verbose_name='배치 높이')
+    layout_shape = models.CharField(max_length=10, choices=TABLE_SHAPE_CHOICES, default='rounded', verbose_name='테이블 모양')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
     

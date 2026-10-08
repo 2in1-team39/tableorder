@@ -7,6 +7,28 @@ from .models import Table, TableGroup
 
 
 class TableStatusApiTests(TestCase):
+    def test_table_layout_can_be_saved(self):
+        table = Table.objects.create(number=1)
+
+        response = self.client.post(
+            reverse('tables:update_layout', args=[table.id]),
+            data=json.dumps({
+                'layout_x': 24,
+                'layout_y': 36,
+                'layout_width': 220,
+                'layout_height': 140,
+                'layout_shape': 'circle',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        table.refresh_from_db()
+        self.assertEqual((table.layout_x, table.layout_y), (24, 36))
+        self.assertEqual((table.layout_width, table.layout_height), (220, 140))
+        self.assertEqual(table.layout_shape, 'circle')
+
     def test_table_memo_can_be_saved_separately_from_orders(self):
         table = Table.objects.create(number=1)
 

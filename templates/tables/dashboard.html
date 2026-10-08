@@ -475,7 +475,10 @@ function submitModalOrder() {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ items: orderItems })
+        body: JSON.stringify({
+            items: orderItems,
+            memo: document.getElementById('modal-order-memo')?.value || ''
+        })
     })
     .then(response => response.json())
     .then(data => {

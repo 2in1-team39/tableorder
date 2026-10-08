@@ -92,6 +92,13 @@ def save_order(request, table_id):
         items = data.get('items', [])
         if not items:
             return JsonResponse({'success': False, 'error': '주문 항목이 없습니다.'})
+
+        memo = data.get('memo', '')
+        if not isinstance(memo, str):
+            return JsonResponse({'success': False, 'error': '주문 메모 형식이 올바르지 않습니다.'})
+        memo = memo.strip()
+        if len(memo) > 500:
+            return JsonResponse({'success': False, 'error': '주문 메모는 500자까지 입력할 수 있습니다.'})
         
         group = table.get_group()
         order = Order.objects.create(
@@ -99,6 +106,7 @@ def save_order(request, table_id):
             # 주방에 표시될 새 주문은 생성 즉시 조리중 상태로 시작한다.
             status='cooking',
             group_name=group.name if group else '',
+            memo=memo,
         )
         
         total_amount = 0

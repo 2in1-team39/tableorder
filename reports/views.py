@@ -9,10 +9,9 @@ from menus.models import Menu
 def sales_dashboard(request):
     """매출 대시보드"""
     today = timezone.now().date()
-    paid_orders = Order.objects.filter(
-        created_at__date=today,
-        status='paid'
-    )
+    paid_orders = Order.objects.filter(created_at__date=today, status='paid')
+    # 주문 내역은 결제 전 주문도 포함한다. 매출 집계만 결제 완료 주문 기준이다.
+    all_today_orders = Order.objects.filter(created_at__date=today)
 
     # 오늘 매출
     today_sales = paid_orders.aggregate(total=Sum('total_amount'))['total'] or 0
@@ -38,7 +37,7 @@ def sales_dashboard(request):
     )
 
     # 주문이 생성된 순서대로 표시한다. group_name은 그룹을 해제해도 주문에 남는다.
-    sales_orders = paid_orders.select_related('table').prefetch_related(
+    sales_orders = all_today_orders.select_related('table').prefetch_related(
         'items__menu'
     ).order_by('created_at', 'id')
     
@@ -47,6 +46,7 @@ def sales_dashboard(request):
         'today_discount': today_discount,
         'today_net_sales': today_net_sales,
         'today_orders': today_orders,
+        'today_total_orders': all_today_orders.count(),
         'today_card_sales': today_card_sales,
         'today_cash_sales': today_cash_sales,
         'sales_orders': sales_orders,

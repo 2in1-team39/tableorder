@@ -61,6 +61,7 @@ class Order(models.Model):
     discount = models.IntegerField(default=0, verbose_name='할인 금액')
     payment_method = models.CharField(max_length=20, blank=True, default='', verbose_name='결제 방법')
     group_name = models.CharField(max_length=100, blank=True, default='', verbose_name='단체손님 이력')
+    memo = models.TextField(blank=True, default='', max_length=500, verbose_name='주문 메모')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='주문일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
     

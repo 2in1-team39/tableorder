@@ -57,6 +57,11 @@
                                 </span>
                             </div>
                             <small class="text-muted">{{ order.created_at|date:"Y-m-d H:i" }}</small>
+                            {% if order.memo %}
+                            <div class="mt-2 small text-secondary">
+                                <i class="fas fa-sticky-note"></i> {{ order.memo|linebreaksbr }}
+                            </div>
+                            {% endif %}
                             <div class="mt-1">
                                 {% for item in order.items.all %}
                                 <div class="small d-flex justify-content-between align-items-center mb-1">
@@ -147,6 +152,10 @@
                         <h6><i class="fas fa-shopping-cart"></i> 주문 내역</h6>
                     </div>
                     <div class="card-body">
+                        <div class="mb-3">
+                            <label for="modal-order-memo" class="form-label small mb-1">주문 메모 <span class="text-muted">(선택)</span></label>
+                            <textarea id="modal-order-memo" class="form-control form-control-sm" rows="3" maxlength="500" placeholder="예: 덜 맵게, 알레르기 등 특이사항"></textarea>
+                        </div>
                         <div id="modal-order-items">
                             <p class="text-muted text-center">선택된 메뉴가 없습니다.</p>
                         </div>

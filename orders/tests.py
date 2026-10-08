@@ -106,3 +106,22 @@ class KitchenOrderManagementTests(TestCase):
         self.assertEqual(response.json()['ready_count'], 1)
         self.assertEqual(response.json()['completed_count'], 1)
         self.assertEqual(response.json()['total_count'], 3)
+
+    def test_order_memo_is_saved_with_a_new_order(self):
+        response = self.client.post(
+            reverse('orders:save', args=[self.table.id]),
+            data=json.dumps({
+                'items': [{'menu_id': self.cooked_menu.id, 'quantity': 1, 'options': []}],
+                'memo': '덜 맵게 부탁드립니다',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        order_id = response.json()['order_id']
+        self.assertEqual(Order.objects.get(id=order_id).memo, '덜 맵게 부탁드립니다')
+
+        report_response = self.client.get(reverse('reports:dashboard'))
+        self.assertContains(report_response, f'#{order_id}')
+        self.assertContains(report_response, '미결제')

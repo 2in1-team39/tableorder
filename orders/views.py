@@ -38,7 +38,7 @@ def order_list(request):
     status_filter = request.GET.get('status', 'cooking')
     if status_filter not in {'all', 'cooking', 'ready', 'completed'}:
         status_filter = 'all'
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     # 주방 화면에는 실제 조리가 필요한 메뉴가 포함된 주문만 표시한다.
     kitchen_orders = Order.objects.filter(
@@ -314,7 +314,7 @@ def kitchen_status_api(request):
     
     # 상태별 카운트
     from django.utils import timezone
-    today = timezone.now().date()
+    today = timezone.localdate()
     cooking_count = kitchen_orders.filter(status__in=active_cooking_statuses).count()
     ready_count = kitchen_orders.filter(status='ready').count()
     completed_count = kitchen_orders.filter(status='paid', updated_at__date=today).count()

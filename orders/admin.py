@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 from .models import Order, OrderItem, Discount, PaymentMethod
 
 class OrderItemInline(admin.TabularInline):
@@ -17,6 +18,11 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ['table__number']
     inlines = [OrderItemInline]
     readonly_fields = ['created_at', 'updated_at']
+
+    def save_model(self, request, obj, form, change):
+        if obj.status == 'paid' and obj.paid_at is None:
+            obj.paid_at = timezone.now()
+        super().save_model(request, obj, form, change)
     
     def get_final_amount(self, obj):
         return obj.get_final_amount()

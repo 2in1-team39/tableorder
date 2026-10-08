@@ -76,10 +76,10 @@
     </div>
 </div>
 
-<!-- 오늘 결제 완료 주문 내역 -->
+<!-- 오늘 주문 내역 -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-receipt"></i> 오늘 결제 완료 주문 내역</h5>
+        <h5 class="mb-0"><i class="fas fa-receipt"></i> 오늘 주문 내역</h5>
         <span class="badge bg-primary">{{ today_total_orders }}건</span>
     </div>
     <div class="table-responsive">
@@ -139,7 +139,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center text-muted py-4">오늘 결제 완료된 주문이 없습니다.</td>
+                    <td colspan="9" class="text-center text-muted py-4">오늘 등록되거나 결제 완료된 주문이 없습니다.</td>
                 </tr>
                 {% endfor %}
             </tbody>

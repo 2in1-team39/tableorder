@@ -12,6 +12,10 @@ def sales_dashboard(request):
     today = timezone.localdate()
     # 매출은 주문 생성일이 아니라 실제 결제일을 기준으로 집계한다.
     paid_orders = Order.objects.filter(paid_at__date=today, status='paid')
+    # 주문 내역은 오늘 생성된 전체 주문과 오늘 결제된 과거 주문을 함께 보여준다.
+    today_orders_list = Order.objects.filter(
+        Q(created_at__date=today) | Q(paid_at__date=today, status='paid')
+    ).distinct()
 
     # 오늘 매출
     today_sales = paid_orders.aggregate(total=Sum('total_amount'))['total'] or 0
@@ -36,17 +40,16 @@ def sales_dashboard(request):
         )['total'] or 0
     )
 
-    # 결제 완료 내역만 결제 시각 순으로 표시한다.
-    sales_orders = paid_orders.select_related('table').prefetch_related(
+    sales_orders = today_orders_list.select_related('table').prefetch_related(
         'items__menu'
-    ).order_by('paid_at', 'id')
+    ).order_by('created_at', 'id')
     
     context = {
         'today_sales': today_sales,
         'today_discount': today_discount,
         'today_net_sales': today_net_sales,
         'today_orders': today_orders,
-        'today_total_orders': paid_orders.count(),
+        'today_total_orders': today_orders_list.count(),
         'today_card_sales': today_card_sales,
         'today_cash_sales': today_cash_sales,
         'sales_orders': sales_orders,

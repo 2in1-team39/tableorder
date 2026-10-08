@@ -159,3 +159,33 @@ class OrderAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '9,000')
+
+    def test_marking_order_paid_in_admin_records_payment_time(self):
+        table = Table.objects.create(number=1)
+        order = Order.objects.create(table=table, status='cooking', total_amount=9000)
+        admin_user = get_user_model().objects.create_superuser(
+            username='admin', password='password'
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse('admin:orders_order_change', args=[order.id]),
+            {
+                'table': table.id,
+                'status': 'paid',
+                'total_amount': 9000,
+                'discount': 0,
+                'payment_method': '카드',
+                'group_name': '',
+                'memo': '',
+                'items-TOTAL_FORMS': '0',
+                'items-INITIAL_FORMS': '0',
+                'items-MIN_NUM_FORMS': '0',
+                'items-MAX_NUM_FORMS': '1000',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'paid')
+        self.assertIsNotNone(order.paid_at)

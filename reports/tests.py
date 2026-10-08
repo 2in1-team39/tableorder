@@ -30,17 +30,18 @@ class SalesDashboardOrderListTests(TestCase):
         )
         return order
 
-    def test_dashboard_lists_only_orders_paid_today(self):
+    def test_dashboard_lists_today_orders_regardless_of_payment_status(self):
         unpaid_order = self.create_order('cooking', 2, '면 많이')
         paid_order = self.create_order('paid', 1)
 
         response = self.client.get(reverse('reports:dashboard'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['today_total_orders'], 1)
-        self.assertNotContains(response, f'#{unpaid_order.id}')
+        self.assertEqual(response.context['today_total_orders'], 2)
+        self.assertContains(response, f'#{unpaid_order.id}')
         self.assertContains(response, f'#{paid_order.id}')
         self.assertContains(response, '결제완료')
+        self.assertContains(response, '미결제')
         self.assertContains(response, '칼국수')
 
     def test_dashboard_uses_payment_date_not_order_creation_date(self):

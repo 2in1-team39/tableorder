@@ -9,7 +9,7 @@ from menus.models import Menu
 
 def sales_dashboard(request):
     """매출 대시보드"""
-    today = timezone.now().date()
+    today = timezone.localdate()
     # 매출은 주문 생성일이 아니라 실제 결제일을 기준으로 집계한다.
     paid_orders = Order.objects.filter(paid_at__date=today, status='paid')
 
@@ -57,7 +57,7 @@ def sales_dashboard(request):
 def daily_sales_api(request):
     """일별 매출 API"""
     days = int(request.GET.get('days', 7))
-    end_date = timezone.now().date()
+    end_date = timezone.localdate()
     start_date = end_date - timedelta(days=days-1)
     
     daily_data = []
@@ -94,7 +94,7 @@ def daily_sales_api(request):
 def menu_sales_api(request):
     """메뉴별 판매 현황 API"""
     days = int(request.GET.get('days', 7))
-    end_date = timezone.now().date()
+    end_date = timezone.localdate()
     start_date = end_date - timedelta(days=days-1)
     
     from django.db.models import F
@@ -113,7 +113,7 @@ def menu_sales_api(request):
 
 def hourly_sales_api(request):
     """시간대별 매출 분석 API"""
-    date_str = request.GET.get('date', timezone.now().date().strftime('%Y-%m-%d'))
+    date_str = request.GET.get('date', timezone.localdate().strftime('%Y-%m-%d'))
     target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     
     hourly_data = []
@@ -138,7 +138,7 @@ def hourly_sales_api(request):
 def monthly_sales_api(request):
     """월별 매출 조회 API"""
     months = int(request.GET.get('months', 6))
-    today = timezone.now().date()
+    today = timezone.localdate()
     current_year = today.year
     current_month = today.month
     

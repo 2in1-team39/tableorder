@@ -7,8 +7,9 @@
 1. Vercel 프로젝트에서 **Marketplace → Neon → Install**을 선택하고 새 데이터베이스를 만듭니다.
 2. Neon 리소스를 이 Vercel 프로젝트의 **Production** 환경에 연결합니다. 연결 시 `DATABASE_URL`이 자동으로 환경 변수에 추가됩니다.
 3. Vercel 프로젝트의 **Settings → Environment Variables**에서 `DJANGO_SECRET_KEY`를 Production에 추가합니다. 충분히 긴 무작위 문자열을 사용합니다.
-4. 커스텀 도메인을 연결했다면 `DJANGO_ALLOWED_HOSTS`에 그 도메인을 추가합니다. 예: `order.example.com`.
-5. 이 변경을 기본 브랜치에 push합니다. 배포 중 `migrate`가 PostgreSQL 테이블을 만들고 `create_initial_data.py`가 기본 테이블·메뉴를 한 번만 생성합니다.
+4. 관리자 로그인용으로 `DJANGO_ADMIN_USERNAME`과 `DJANGO_ADMIN_PASSWORD`를 Production에 추가합니다. 이 값으로 관리자 계정이 생성되며, 이후 배포 시 같은 사용자 비밀번호로 갱신됩니다.
+5. 커스텀 도메인을 연결했다면 `DJANGO_ALLOWED_HOSTS`에 그 도메인을 추가합니다. 예: `order.example.com`.
+6. 이 변경을 기본 브랜치에 push합니다. 배포 중 `migrate`가 PostgreSQL 테이블을 만들고 `create_initial_data.py`가 기본 테이블·메뉴와 관리자 계정을 생성합니다.
 
 ## 배포 확인
 

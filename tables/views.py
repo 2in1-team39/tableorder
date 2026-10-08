@@ -11,28 +11,14 @@ def table_dashboard(request):
     return render(request, 'tables/dashboard.html', {'tables': tables})
 
 def table_status_api(request):
-    from .models import TableGroup
-    from orders.models import Order
-    from django.utils import timezone
-    
     tables = Table.objects.all().order_by('number')
     tables_data = []
-    today = timezone.now().date()
     
     for table in tables:
         group = table.get_group()
-        
-        # 결제 완료된 주문이 있는지 확인
-        has_paid_orders = table.orders.filter(
-            status='paid',
-            created_at__date=today
-        ).exists()
-        
-        # 결제 완료된 주문이 있으면 paid 상태 유지
-        if has_paid_orders and table.status != 'paid':
-            table.status = 'paid'
-            table.save()
-        
+
+        # 상태는 사용자가 직접 변경한 값을 그대로 반환한다. 과거 결제 기록이
+        # 남아 있더라도 빈 테이블로 바꾼 상태를 결제 완료로 되돌리지 않는다.
         tables_data.append({
             'id': table.id,
             'number': table.number,

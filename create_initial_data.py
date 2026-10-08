@@ -6,6 +6,27 @@ django.setup()
 
 from tables.models import Table
 from menus.models import Menu
+from django.contrib.auth import get_user_model
+
+
+def create_or_update_admin():
+    """Vercel 환경변수로 지정한 관리자 계정을 생성하거나 비밀번호를 갱신한다."""
+    username = os.environ.get('DJANGO_ADMIN_USERNAME')
+    password = os.environ.get('DJANGO_ADMIN_PASSWORD')
+
+    if not username or not password:
+        print('관리자 계정 환경변수가 없어 생성을 건너뜁니다.')
+        return
+
+    user_model = get_user_model()
+    user, created = user_model.objects.get_or_create(username=username)
+    user.is_staff = True
+    user.is_superuser = True
+    user.is_active = True
+    user.set_password(password)
+    user.save()
+    action = '생성' if created else '비밀번호 갱신'
+    print(f'관리자 계정 {action} 완료: {username}')
 
 # 테이블 생성 (1~20번)
 for i in range(1, 21):
@@ -63,4 +84,5 @@ for menu_data in menus_data:
     if created:
         print(f'메뉴 {menu_data["name"]} 생성됨')
 
+create_or_update_admin()
 print('초기 데이터 생성 완료!')

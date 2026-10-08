@@ -40,11 +40,25 @@ if IS_VERCEL:
     CSRF_COOKIE_SECURE = True
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '.vercel.app']
-ALLOWED_HOSTS += [
+CUSTOM_ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
     if host.strip()
 ]
+ALLOWED_HOSTS += CUSTOM_ALLOWED_HOSTS
+
+# Django는 HTTPS 관리자 로그인 POST의 Origin/Referer도 별도로 검증한다.
+# Vercel 배포 URL 및 DJANGO_ALLOWED_HOSTS의 커스텀 도메인을 신뢰 목록에 넣어
+# 관리자 로그인 시 발생하는 CSRF 403을 막는다.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if IS_VERCEL:
+    CSRF_TRUSTED_ORIGINS += ['https://*.vercel.app']
+    CSRF_TRUSTED_ORIGINS += [f'https://{host}' for host in CUSTOM_ALLOWED_HOSTS]
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
 
 # Application definition

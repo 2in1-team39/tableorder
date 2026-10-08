@@ -25,6 +25,7 @@ def table_status_api(request):
             'number': table.number,
             'status': table.status,
             'seats': table.seats,
+            'memo': table.memo,
             'group_name': group.name if group else None,
             'group_id': group.id if group else None
         })
@@ -44,6 +45,28 @@ def update_table_status(request, table_id):
         return JsonResponse({'success': True, 'status': table.status})
     
     return JsonResponse({'success': False, 'error': 'Invalid status'})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_table_memo(request, table_id):
+    table = get_object_or_404(Table, id=table_id)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': '요청 형식이 올바르지 않습니다.'}, status=400)
+
+    memo = data.get('memo', '')
+    if not isinstance(memo, str):
+        return JsonResponse({'success': False, 'error': '테이블 메모 형식이 올바르지 않습니다.'}, status=400)
+
+    memo = memo.strip()
+    if len(memo) > 500:
+        return JsonResponse({'success': False, 'error': '테이블 메모는 500자까지 입력할 수 있습니다.'}, status=400)
+
+    table.memo = memo
+    table.save(update_fields=['memo', 'updated_at'])
+    return JsonResponse({'success': True, 'memo': table.memo})
 
 def table_detail(request, table_id):
     table = get_object_or_404(Table, id=table_id)

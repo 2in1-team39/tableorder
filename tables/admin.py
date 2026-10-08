@@ -3,7 +3,7 @@ from .models import Table, TableGroup
 
 @admin.register(Table)
 class TableAdmin(admin.ModelAdmin):
-    list_display = ['number', 'seats', 'status', 'created_at']
+    list_display = ['number', 'seats', 'status', 'memo', 'created_at']
     list_filter = ['status', 'seats']
     search_fields = ['number']
     ordering = ['number']

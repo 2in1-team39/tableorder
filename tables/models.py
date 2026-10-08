@@ -11,6 +11,7 @@ class Table(models.Model):
     number = models.IntegerField(unique=True, verbose_name='테이블 번호')
     seats = models.IntegerField(default=4, verbose_name='좌석 수')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='empty', verbose_name='상태')
+    memo = models.TextField(blank=True, default='', max_length=500, verbose_name='테이블 메모')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='생성일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
     

@@ -484,8 +484,7 @@ function submitModalOrder() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            items: orderItems,
-            memo: document.getElementById('modal-order-memo')?.value || ''
+            items: orderItems
         })
     })
     .then(response => response.json())
@@ -501,6 +500,39 @@ function submitModalOrder() {
     .catch(error => {
         console.error('Error:', error);
         alert('주문 처리 중 오류가 발생했습니다.');
+    });
+}
+
+function saveTableMemo() {
+    if (!currentTableId) {
+        alert('테이블 정보를 찾을 수 없습니다.');
+        return;
+    }
+
+    const memoInput = document.getElementById('table-memo');
+    if (!memoInput) {
+        return;
+    }
+
+    fetch(`/api/memo/${currentTableId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ memo: memoInput.value })
+    })
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
+        if (!ok || !data.success) {
+            alert(data.error || '메모 저장 중 오류가 발생했습니다.');
+            return;
+        }
+        memoInput.value = data.memo;
+        alert('테이블 메모를 저장했습니다.');
+    })
+    .catch(error => {
+        console.error('Error saving table memo:', error);
+        alert('메모 저장 중 오류가 발생했습니다.');
     });
 }
 

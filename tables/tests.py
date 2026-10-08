@@ -7,6 +7,20 @@ from .models import Table, TableGroup
 
 
 class TableStatusApiTests(TestCase):
+    def test_table_memo_can_be_saved_separately_from_orders(self):
+        table = Table.objects.create(number=1)
+
+        response = self.client.post(
+            reverse('tables:update_memo', args=[table.id]),
+            data=json.dumps({'memo': '창가 자리, 알레르기 안내 확인'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+        table.refresh_from_db()
+        self.assertEqual(table.memo, '창가 자리, 알레르기 안내 확인')
+
     def test_paid_order_does_not_override_an_empty_table_status(self):
         table = Table.objects.create(number=1)
         Order.objects.create(table=table, status='paid', total_amount=10000)

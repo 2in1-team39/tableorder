@@ -4,7 +4,12 @@ class Menu(models.Model):
     name = models.CharField(max_length=100, verbose_name='메뉴명')
     price = models.IntegerField(verbose_name='가격')
     description = models.TextField(blank=True, verbose_name='설명')
-    options = models.JSONField(default=list, verbose_name='옵션', help_text='예: ["고추빼고", "면 많이"]')
+    options = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='옵션',
+        help_text='선택 사항입니다. 예: ["고추빼고", "면 많이"]',
+    )
     min_order = models.IntegerField(default=1, verbose_name='최소 주문 수량')
     is_active = models.BooleanField(default=True, verbose_name='활성 상태')
     requires_cooking = models.BooleanField(default=True, verbose_name='주방 조리 필요')

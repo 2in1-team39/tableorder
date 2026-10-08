@@ -59,6 +59,8 @@ class Order(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending', verbose_name='상태')
     total_amount = models.IntegerField(default=0, verbose_name='총 금액')
     discount = models.IntegerField(default=0, verbose_name='할인 금액')
+    payment_method = models.CharField(max_length=20, blank=True, default='', verbose_name='결제 방법')
+    group_name = models.CharField(max_length=100, blank=True, default='', verbose_name='단체손님 이력')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='주문일시')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일시')
     

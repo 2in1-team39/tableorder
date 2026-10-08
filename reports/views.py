@@ -9,31 +9,38 @@ from menus.models import Menu
 def sales_dashboard(request):
     """매출 대시보드"""
     today = timezone.now().date()
-    
+    paid_orders = Order.objects.filter(
+        created_at__date=today,
+        status='paid'
+    )
+
     # 오늘 매출
-    today_sales = Order.objects.filter(
-        created_at__date=today,
-        status='paid'
-    ).aggregate(total=Sum('total_amount'))['total'] or 0
-    
+    today_sales = paid_orders.aggregate(total=Sum('total_amount'))['total'] or 0
+
     # 오늘 할인 금액
-    today_discount = Order.objects.filter(
-        created_at__date=today,
-        status='paid'
-    ).aggregate(total=Sum('discount'))['total'] or 0
+    today_discount = paid_orders.aggregate(total=Sum('discount'))['total'] or 0
     
     # 오늘 순매출
     today_net_sales = today_sales - today_discount
     
     # 오늘 주문 수
-    today_orders = Order.objects.filter(
-        created_at__date=today,
-        status='paid'
-    ).count()
-    
-    # 결제 방법별 매출 (추후 구현)
-    today_card_sales = 0
-    today_cash_sales = 0
+    today_orders = paid_orders.count()
+
+    today_card_sales = (
+        paid_orders.filter(payment_method='카드').aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+    )
+    today_cash_sales = (
+        paid_orders.filter(payment_method='현금').aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+    )
+
+    # 주문이 생성된 순서대로 표시한다. group_name은 그룹을 해제해도 주문에 남는다.
+    sales_orders = paid_orders.select_related('table').prefetch_related(
+        'items__menu'
+    ).order_by('created_at', 'id')
     
     context = {
         'today_sales': today_sales,
@@ -42,6 +49,7 @@ def sales_dashboard(request):
         'today_orders': today_orders,
         'today_card_sales': today_card_sales,
         'today_cash_sales': today_cash_sales,
+        'sales_orders': sales_orders,
     }
     
     return render(request, 'reports/dashboard.html', context)

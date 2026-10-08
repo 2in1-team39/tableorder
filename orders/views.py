@@ -67,9 +67,11 @@ def save_order(request, table_id):
         if not items:
             return JsonResponse({'success': False, 'error': '주문 항목이 없습니다.'})
         
+        group = table.get_group()
         order = Order.objects.create(
             table=table,
-            status='pending'
+            status='pending',
+            group_name=group.name if group else '',
         )
         
         total_amount = 0

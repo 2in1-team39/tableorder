@@ -1,8 +1,9 @@
 from django.test import TestCase
 from django.urls import reverse
+import json
 
 from orders.models import Order
-from .models import Table
+from .models import Table, TableGroup
 
 
 class TableStatusApiTests(TestCase):
@@ -18,3 +19,25 @@ class TableStatusApiTests(TestCase):
         self.assertEqual(response.json()[0]['status'], 'empty')
         table.refresh_from_db()
         self.assertEqual(table.status, 'empty')
+
+    def test_group_payment_keeps_group_and_payment_history_after_group_delete(self):
+        table = Table.objects.create(number=1)
+        group = TableGroup.objects.create(name='단체손님 1')
+        group.tables.add(table)
+        order = Order.objects.create(table=table, status='cooking', total_amount=24000)
+
+        response = self.client.post(
+            reverse('tables:group_payment', args=[group.id]),
+            data=json.dumps({'payment_method': '카드'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'paid')
+        self.assertEqual(order.payment_method, '카드')
+        self.assertEqual(order.group_name, '단체손님 1')
+
+        group.delete()
+        order.refresh_from_db()
+        self.assertEqual(order.group_name, '단체손님 1')

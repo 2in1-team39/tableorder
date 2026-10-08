@@ -80,6 +80,7 @@ def process_payment(request, table_id):
     
     # 해당 테이블의 모든 미결제 주문들
     orders = Order.objects.filter(table=table).exclude(status='paid')
+    group = table.get_group()
     
     # 할인 적용
     if discount_id:
@@ -96,8 +97,11 @@ def process_payment(request, table_id):
     total_amount = sum(order.get_final_amount() for order in orders)
     
     for order in orders:
+        if group:
+            order.group_name = group.name
+        order.payment_method = payment_method or ''
         order.status = 'paid'
-        order.save()
+        order.save(update_fields=['group_name', 'payment_method', 'status', 'updated_at'])
     
     # 테이블 상태를 '결제 완료'로 변경 (유지)
     table.status = 'paid'
@@ -195,6 +199,8 @@ def create_group(request):
         # 테이블 추가
         tables = Table.objects.filter(id__in=table_ids)
         group.tables.set(tables)
+        # 그룹 지정 전에 생성된 미결제 주문에도 단체손님 이력을 남긴다.
+        Order.objects.filter(table__in=tables).exclude(status='paid').update(group_name=group_name)
         
         return JsonResponse({
             'success': True, 
@@ -308,8 +314,10 @@ def group_payment(request, group_id):
         
         # 모든 주문을 결제 완료로 변경
         for order in orders:
+            order.group_name = group.name
+            order.payment_method = payment_method
             order.status = 'paid'
-            order.save()
+            order.save(update_fields=['group_name', 'payment_method', 'status', 'updated_at'])
         
         # 모든 테이블 상태를 결제 완료로 변경 (유지)
         for table in group_tables:

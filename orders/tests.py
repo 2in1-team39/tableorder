@@ -2,6 +2,7 @@ import json
 
 from django.test import TestCase
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 
 from menus.models import Menu
 from tables.models import Table
@@ -141,3 +142,20 @@ class KitchenOrderManagementTests(TestCase):
         self.assertFalse(response.json()['success'])
         self.assertIn('품절', response.json()['error'])
         self.assertFalse(Order.objects.exists())
+
+
+class OrderAdminTests(TestCase):
+    def test_order_change_page_renders_order_item_total(self):
+        table = Table.objects.create(number=1)
+        menu = Menu.objects.create(name='칼국수', price=9000)
+        order = Order.objects.create(table=table, total_amount=9000)
+        OrderItem.objects.create(order=order, menu=menu, quantity=1, unit_price=9000)
+        admin_user = get_user_model().objects.create_superuser(
+            username='admin', password='password'
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.get(reverse('admin:orders_order_change', args=[order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '9,000')

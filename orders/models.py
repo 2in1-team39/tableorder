@@ -99,7 +99,9 @@ class OrderItem(models.Model):
         return f'{self.menu.name} x {self.quantity}'
     
     def get_total_price(self):
-        return self.unit_price * self.quantity
+        # Django 관리자 인라인은 새 항목 입력을 위한 빈 행도 렌더링한다.
+        # 아직 단가/수량이 없는 빈 행에서는 0원으로 표시한다.
+        return (self.unit_price or 0) * (self.quantity or 0)
     
     def save(self, *args, **kwargs):
         if not self.unit_price:

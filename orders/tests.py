@@ -36,6 +36,16 @@ class KitchenOrderManagementTests(TestCase):
         self.assertContains(response, f'data-order-id="{paid_order.id}"')
         self.assertNotContains(response, f'data-order-id="{active_order.id}"')
 
+    def test_kitchen_opens_on_cooking_tab_by_default(self):
+        cooking_order = self.create_order(status='cooking')
+        ready_order = self.create_order(status='ready')
+
+        response = self.client.get(reverse('orders:list'))
+
+        self.assertEqual(response.context['status_filter'], 'cooking')
+        self.assertContains(response, f'data-order-id="{cooking_order.id}"')
+        self.assertNotContains(response, f'data-order-id="{ready_order.id}"')
+
     def test_reopening_a_completed_item_reopens_its_order(self):
         order = self.create_order(status='ready')
         item = order.items.get()

@@ -6,6 +6,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-fire"></i> 주방 주문 관리</h2>
     <div>
+        <button id="sound-toggle" type="button" class="btn btn-sm btn-outline-secondary me-2" title="새 주문 알림음 설정">
+            <i class="fas fa-volume-mute"></i> 알림음 켜기
+        </button>
         <span id="total-count-badge" class="badge bg-secondary me-2">전체 {{ total_count }}</span>
         <span id="cooking-count-badge" class="badge bg-primary me-2">조리중 {{ cooking_count }}</span>
         <span id="ready-count-badge" class="badge bg-success">완료 {{ ready_count }}</span>
@@ -152,6 +155,8 @@ function toggleMenuStatus(itemId) {
 // 첫 API 응답은 기준값으로만 사용한다. 건수는 결제/완료 상태 변화에도
 // 달라질 수 있으므로 새 주문 판단에 사용하지 않는다.
 let knownActiveOrderIds = null;
+let notificationAudioContext = null;
+let kitchenSoundEnabled = false;
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', function() {
@@ -166,7 +171,48 @@ document.addEventListener('DOMContentLoaded', function() {
         sessionStorage.removeItem('kitchen-new-order-arrived');
         showNewOrderAlert();
     }
+
+    document.getElementById('sound-toggle').addEventListener('click', enableKitchenSound);
 });
+
+function enableKitchenSound() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+        alert('이 브라우저에서는 알림음을 지원하지 않습니다.');
+        return;
+    }
+
+    notificationAudioContext = notificationAudioContext || new AudioContextClass();
+    notificationAudioContext.resume().then(() => {
+        kitchenSoundEnabled = true;
+        const button = document.getElementById('sound-toggle');
+        button.className = 'btn btn-sm btn-success me-2';
+        button.innerHTML = '<i class="fas fa-volume-up"></i> 알림음 켜짐';
+        playKitchenChime(); // 사용자가 소리를 들을 수 있도록 활성화 즉시 확인음을 낸다.
+    }).catch(() => {
+        alert('알림음을 켤 수 없습니다. 브라우저의 소리 권한을 확인해 주세요.');
+    });
+}
+
+function playKitchenChime() {
+    if (!kitchenSoundEnabled || !notificationAudioContext || notificationAudioContext.state !== 'running') return;
+
+    const now = notificationAudioContext.currentTime;
+    [660, 880].forEach((frequency, index) => {
+        const oscillator = notificationAudioContext.createOscillator();
+        const gain = notificationAudioContext.createGain();
+        const startAt = now + (index * 0.18);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.18, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.16);
+        oscillator.connect(gain).connect(notificationAudioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + 0.17);
+    });
+}
 
 function scrollToBottom() {
     setTimeout(function() {
@@ -178,7 +224,7 @@ function scrollToBottom() {
 }
 
 function updateKitchenStatus() {
-    const currentFilter = new URLSearchParams(window.location.search).get('status') || 'all';
+    const currentFilter = new URLSearchParams(window.location.search).get('status') || 'cooking';
     
     fetch('/orders/api/kitchen-status/')
         .then(response => response.json())
@@ -201,7 +247,9 @@ function updateKitchenStatus() {
             // 완료 탭은 새 조리 주문을 표시하지 않으므로 갱신하지 않는다.
             if (hasNewOrder && ['all', 'cooking'].includes(currentFilter)) {
                 sessionStorage.setItem('kitchen-new-order-arrived', 'true');
-                window.location.reload();
+                playKitchenChime();
+                // 알림음을 들은 뒤 새 주문 카드를 바로 표시한다.
+                window.setTimeout(() => window.location.reload(), 450);
             }
         })
         .catch(error => {

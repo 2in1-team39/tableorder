@@ -13,7 +13,8 @@ from menus.models import Menu
 def order_list(request):
     from django.utils import timezone
 
-    status_filter = request.GET.get('status', 'all')
+    # 주방은 처리할 주문을 먼저 보여 준다. 전체 이력은 탭에서 확인한다.
+    status_filter = request.GET.get('status', 'cooking')
     if status_filter not in {'all', 'cooking', 'ready', 'completed'}:
         status_filter = 'all'
     today = timezone.now().date()

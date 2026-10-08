@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 import qrcode
 from io import BytesIO
 from django.core.files import File
@@ -29,7 +30,6 @@ class Table(models.Model):
     
     def generate_qr_code(self):
         """테이블용 QR코드 생성"""
-        from django.conf import settings
         
         # QR코드에 포함될 URL (고객 주문 페이지)
         qr_url = f"http://localhost:8000/order/{self.number}/"
@@ -69,7 +69,7 @@ class Table(models.Model):
         is_new = self.pk is None
         super().save(*args, **kwargs)
         
-        if is_new or not self.qr_code:
+        if settings.GENERATE_QR_CODES and (is_new or not self.qr_code):
             self.generate_qr_code()
             super().save(update_fields=['qr_code'])
 

@@ -23,6 +23,31 @@
         .table-paid { background-color: #d1edff; border-color: #0dcaf0; }
         .table-card:hover { transform: scale(1.05); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
         .navbar-brand { font-weight: bold; }
+        .app-navbar .container {
+            flex-wrap: nowrap;
+            gap: 0.75rem;
+        }
+        .app-navbar .navbar-brand {
+            flex: 0 1 auto;
+            margin-right: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .app-navbar .navbar-nav {
+            flex: 1 1 auto;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            justify-content: flex-end;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .app-navbar .navbar-nav::-webkit-scrollbar { display: none; }
+        .app-navbar .nav-link {
+            flex: 0 0 auto;
+            padding: 0.5rem 0.65rem;
+            white-space: nowrap;
+        }
         .status-badge:hover { 
             opacity: 0.8; 
             transform: scale(1.1);
@@ -41,13 +66,25 @@
         .status-badge:hover::after {
             opacity: 1;
         }
+        @media (max-width: 991.98px) {
+            .app-navbar .container { max-width: none; }
+            .app-navbar .navbar-brand { font-size: 1rem; }
+            .app-navbar .nav-link { font-size: 0.9rem; padding: 0.45rem 0.5rem; }
+            .page-container { margin-top: 1rem !important; }
+        }
+        @media (max-width: 575.98px) {
+            .app-navbar .container { gap: 0.35rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+            .app-navbar .brand-name { display: none; }
+            .app-navbar .navbar-brand { flex: 0 0 auto; padding: 0.5rem 0.25rem; }
+            .app-navbar .nav-link { font-size: 0.82rem; padding: 0.5rem 0.42rem; }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-dark bg-primary app-navbar">
         <div class="container">
             <a class="navbar-brand" href="{% url 'tables:dashboard' %}">
-                <i class="fas fa-utensils"></i> 항아리 손칼국수
+                <i class="fas fa-utensils"></i><span class="brand-name"> 항아리 손칼국수</span>
             </a>
             <div class="navbar-nav">
                 <a class="nav-link" href="{% url 'tables:dashboard' %}">테이블 현황</a>
@@ -59,7 +96,7 @@
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="container mt-4 page-container">
         {% block content %}
         {% endblock %}
     </div>

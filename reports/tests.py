@@ -41,3 +41,12 @@ class SalesDashboardOrderListTests(TestCase):
         self.assertContains(response, '결제완료')
         self.assertContains(response, '칼국수')
         self.assertContains(response, '면 많이')
+
+    def test_today_order_count_api_includes_unpaid_orders(self):
+        self.create_order('cooking', 1)
+        self.create_order('paid', 1)
+
+        response = self.client.get(reverse('reports:today_order_count_api'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['count'], 2)

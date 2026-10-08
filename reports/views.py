@@ -6,6 +6,17 @@ from datetime import datetime, timedelta
 from orders.models import Order, OrderItem
 from menus.models import Menu
 
+
+def today_order_change_marker(today):
+    """오늘 주문 목록이나 상태가 바뀌었는지 비교하는 값."""
+    return '|'.join(
+        f'{order_id}:{updated_at.strftime("%Y%m%d%H%M%S%f")}'
+        for order_id, updated_at in Order.objects.filter(
+            created_at__date=today
+        ).order_by('id').values_list('id', 'updated_at')
+    )
+
+
 def sales_dashboard(request):
     """매출 대시보드"""
     today = timezone.now().date()
@@ -47,12 +58,22 @@ def sales_dashboard(request):
         'today_net_sales': today_net_sales,
         'today_orders': today_orders,
         'today_total_orders': all_today_orders.count(),
+        'today_order_change_marker': today_order_change_marker(today),
         'today_card_sales': today_card_sales,
         'today_cash_sales': today_cash_sales,
         'sales_orders': sales_orders,
     }
     
     return render(request, 'reports/dashboard.html', context)
+
+
+def today_order_count_api(request):
+    """매출관리 화면이 새로 등록된 오늘 주문을 감지하기 위한 경량 API."""
+    today = timezone.now().date()
+    return JsonResponse({
+        'count': Order.objects.filter(created_at__date=today).count(),
+        'marker': today_order_change_marker(today),
+    })
 
 def daily_sales_api(request):
     """일별 매출 API"""

@@ -77,7 +77,7 @@
 </div>
 
 <!-- 오늘 전체 주문 내역 -->
-<div class="card mb-4">
+<div id="today-orders-card" class="card mb-4" data-order-count="{{ today_total_orders }}" data-order-marker="{{ today_order_change_marker }}">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-receipt"></i> 오늘 전체 주문 내역</h5>
         <span class="badge bg-primary">{{ today_total_orders }}건</span>
@@ -260,7 +260,26 @@ document.addEventListener('DOMContentLoaded', function() {
     loadMonthlySales();
     loadMenuSales();
     loadHourlySales();
+    watchTodayOrderCount();
 });
+
+function watchTodayOrderCount() {
+    const orderCard = document.getElementById('today-orders-card');
+    const initialCount = Number(orderCard.dataset.orderCount);
+    const initialMarker = orderCard.dataset.orderMarker;
+
+    setInterval(() => {
+        fetch('/reports/api/today-order-count/')
+            .then(response => response.json())
+            .then(data => {
+                // 새 주문 또는 주문 취소가 있으면 서버 렌더링 목록을 최신 상태로 갱신한다.
+                if (data.count !== initialCount || data.marker !== initialMarker) {
+                    window.location.reload();
+                }
+            })
+            .catch(error => console.error('Error checking today order count:', error));
+    }, 3000);
+}
 
 function loadDailySales(days) {
     fetch(`/reports/api/daily-sales/?days=${days}`)

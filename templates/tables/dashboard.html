@@ -78,6 +78,8 @@
     <div class="col-md-3 col-sm-4 col-6">
         <div class="table-card table-{{ table.status }}" 
              data-table-id="{{ table.id }}" 
+             data-table-number="{{ table.number }}"
+             data-table-status="{{ table.status }}"
              onclick="showTableDetail({{ table.id }})">
             <h4>테이블 {{ table.number }}</h4>
             {% if table.get_group %}
@@ -107,7 +109,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">테이블 상세 정보</h5>
+                <h5 class="modal-title" id="table-modal-title">테이블</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="modal-content">
@@ -183,6 +185,7 @@ function updateTableStatus() {
                     tableCard.className = tableCard.className.replace(/table-(empty|ordered|cooking|paid)/g, '');
                     // 새 상태 클래스 추가
                     tableCard.classList.add(`table-${table.status}`);
+                    tableCard.dataset.tableStatus = table.status;
                     
                     // 그룹 정보 업데이트
                     const existingGroupBadge = tableCard.querySelector('.badge.bg-info');
@@ -227,10 +230,16 @@ function updateTableStatus() {
 
 function showTableDetail(tableId) {
     currentTableId = tableId;
+    const tableCard = document.querySelector(`.table-card[data-table-id="${tableId}"]`);
+    const isEmptyTable = tableCard && tableCard.dataset.tableStatus === 'empty';
+    const tableNumber = tableCard ? tableCard.dataset.tableNumber : '';
+    const statusLabel = tableCard ? tableCard.querySelector('.status-badge').textContent.trim() : '';
+
     fetch(`/detail/${tableId}/`)
         .then(response => response.text())
         .then(html => {
             document.getElementById('modal-content').innerHTML = html;
+            document.getElementById('table-modal-title').textContent = `테이블 ${tableNumber}번 · ${statusLabel}`;
             tableModal.show();
             
             // 할인 옵션 로드
@@ -240,6 +249,13 @@ function showTableDetail(tableId) {
             document.getElementById('order-tab').addEventListener('click', function() {
                 loadMenusForModal(tableId);
             });
+
+            // 빈 테이블을 누르면 정보 탭을 거치지 않고 주문 입력을 바로 연다.
+            if (isEmptyTable) {
+                const orderTab = document.getElementById('order-tab');
+                bootstrap.Tab.getOrCreateInstance(orderTab).show();
+                loadMenusForModal(tableId);
+            }
         })
         .catch(error => console.error('Error loading table detail:', error));
 }
@@ -539,6 +555,7 @@ function updateSingleTable(tableId, newStatus) {
         tableCard.className = tableCard.className.replace(/table-(empty|ordered|cooking|paid)/g, '');
         // 새 상태 클래스 추가
         tableCard.classList.add(`table-${newStatus}`);
+        tableCard.dataset.tableStatus = newStatus;
     }
     
     if (statusBadge) {

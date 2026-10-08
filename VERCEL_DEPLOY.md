@@ -19,4 +19,3 @@
 ## 주의사항
 
 - Preview 배포도 같은 `DATABASE_URL`을 쓰면 migration이 실행됩니다. Preview별 격리가 필요하면 Neon의 브랜치 기능을 연결하거나 Preview에는 별도 DB를 지정하세요.
-- QR 이미지 업로드는 Vercel에서 저장되지 않도록 기본 비활성화했습니다. 나중에 필요해지면 Vercel Blob/S3 같은 파일 저장소를 추가해야 합니다.

@@ -157,16 +157,6 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Vercel의 파일시스템은 읽기 전용이므로 QR 파일 생성은 로컬에서만 기본 활성화한다.
-GENERATE_QR_CODES = os.environ.get(
-    'GENERATE_QR_CODES',
-    '0' if IS_VERCEL else '1',
-) == '1'
-
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True
 

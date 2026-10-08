@@ -633,63 +633,6 @@ function cancelOrderItem(itemId) {
     });
 }
 
-function generateQRCode(tableId) {
-    fetch(`/api/generate-qr/${tableId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('QR코드가 생성되었습니다.');
-            tableModal.hide();
-            setTimeout(() => showTableDetail(tableId), 300);
-        } else {
-            alert('QR코드 생성에 실패했습니다.');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('QR코드 생성 중 오류가 발생했습니다.');
-    });
-}
-
-function regenerateQRCode(tableId) {
-    if (!confirm('QR코드를 다시 생성하시겠습니까?')) {
-        return;
-    }
-    generateQRCode(tableId);
-}
-
-function printQRCode(tableId) {
-    const printWindow = window.open('', '_blank');
-    const qrImage = document.querySelector(`img[alt="QR코드"]`);
-    
-    if (qrImage) {
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>테이블 ${tableId} QR코드</title>
-                    <style>
-                        body { text-align: center; font-family: Arial, sans-serif; }
-                        img { max-width: 300px; }
-                        h2 { margin: 20px 0; }
-                    </style>
-                </head>
-                <body>
-                    <h2>테이블 ${tableId}번</h2>
-                    <img src="${qrImage.src}" alt="QR코드">
-                    <p>스마트폰으로 QR코드를 스캔하여 주문하세요</p>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
-    }
-}
-
 function loadGroupManagement() {
     // 테이블 선택 체크박스 로드
     fetch('/api/status/')

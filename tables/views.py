@@ -66,85 +66,23 @@ def table_detail(request, table_id):
     
     # 총 금액 계산
     total_amount = sum(order.get_final_amount() for order in orders)
+
+    group = table.get_group()
+    group_total_amount = None
+    if group:
+        group_orders = Order.objects.filter(
+            table__in=group.tables.all()
+        ).exclude(status='paid')
+        group_total_amount = sum(order.get_final_amount() for order in group_orders)
     
     return render(request, 'tables/detail.html', {
         'table': table, 
         'orders': orders, 
         'menus': menus,
-        'total_amount': total_amount
+        'total_amount': total_amount,
+        'group': group,
+        'group_total_amount': group_total_amount,
     })
-
-def customer_order(request, table_number):
-    table = get_object_or_404(Table, number=table_number)
-    from menus.models import Menu
-    menus = Menu.objects.filter(is_active=True).order_by('name')
-    return render(request, 'orders/customer_order.html', {'table': table, 'menus': menus})
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def submit_order(request, table_number):
-    try:
-        table = get_object_or_404(Table, number=table_number)
-        data = json.loads(request.body)
-        
-        items = data.get('items', [])
-        if not items:
-            return JsonResponse({'success': False, 'error': '주문 항목이 없습니다.'})
-        
-        # 새 주문 생성
-        order = Order.objects.create(
-            table=table,
-            status='pending'
-        )
-        
-        total_amount = 0
-        from menus.models import Menu
-        from orders.models import OrderItem
-        
-        # 주문 항목들 생성
-        for item_data in items:
-            try:
-                menu_id = item_data.get('menu_id')
-                quantity = int(item_data.get('quantity', 0))
-                options = item_data.get('options', [])
-                
-                if not menu_id or quantity <= 0:
-                    continue
-                
-                menu = Menu.objects.get(id=menu_id)
-                
-                order_item = OrderItem.objects.create(
-                    order=order,
-                    menu=menu,
-                    quantity=quantity,
-                    options=options if options else [],
-                    unit_price=menu.price
-                )
-                total_amount += order_item.get_total_price()
-                
-            except (Menu.DoesNotExist, ValueError, KeyError) as e:
-                continue
-        
-        if total_amount == 0:
-            order.delete()
-            return JsonResponse({'success': False, 'error': '유효한 주문 항목이 없습니다.'})
-        
-        # 주문 총액 업데이트
-        order.total_amount = total_amount
-        order.save()
-        
-        # 테이블 상태를 '주문 완료'로 변경
-        table.status = 'ordered'
-        table.save()
-        
-        return JsonResponse({
-            'success': True, 
-            'order_id': order.id,
-            'total_amount': total_amount
-        })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -229,45 +167,6 @@ def payment_methods_api(request):
             {'id': 1, 'name': '카드', 'code': 'card'},
             {'id': 2, 'name': '현금', 'code': 'cash'}
         ], safe=False)
-
-def order_status_api(request, table_number):
-    table = get_object_or_404(Table, number=table_number)
-    orders = Order.objects.filter(table=table).exclude(status='paid').order_by('-created_at')
-    
-    orders_data = []
-    for order in orders:
-        items_data = []
-        for item in order.items.all():
-            items_data.append({
-                'menu_name': item.menu.name,
-                'quantity': item.quantity,
-                'options': item.options,
-                'total_price': item.get_total_price(),
-                'status': getattr(item, 'status', 'cooking')
-            })
-        
-        orders_data.append({
-            'id': order.id,
-            'status': order.status,
-            'status_display': order.get_status_display(),
-            'total_amount': order.get_final_amount(),
-            'created_at': order.created_at.strftime('%Y-%m-%d %H:%M'),
-            'items': items_data
-        })
-    
-    return JsonResponse({'orders': orders_data})
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def generate_qr_code(request, table_id):
-    table = get_object_or_404(Table, id=table_id)
-    
-    try:
-        table.generate_qr_code()
-        table.save()
-        return JsonResponse({'success': True})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
 
 def groups_api(request):
     """그룹 목록 API"""

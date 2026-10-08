@@ -7,7 +7,7 @@ class TableAdmin(admin.ModelAdmin):
     list_filter = ['status', 'seats']
     search_fields = ['number']
     ordering = ['number']
-    readonly_fields = ['qr_code', 'created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at']
 
 @admin.register(TableGroup)
 class TableGroupAdmin(admin.ModelAdmin):

@@ -10,7 +10,6 @@
         justify-content: space-between;
         gap: 1rem;
     }
-    .dashboard-title { margin: 0; }
     .dashboard-controls {
         display: flex;
         align-items: center;
@@ -27,52 +26,20 @@
     .status-legend-item { margin: 0 !important; }
     .table-layout-scroll { overflow-x: auto; padding-bottom: 0.5rem; }
     #tables-container {
-        position: relative;
-        min-width: 820px;
-        min-height: 640px;
-        overflow: hidden;
-        border: 1px solid #dee2e6;
-        border-radius: 0.75rem;
-        background-color: #f8f9fa;
-        background-image: radial-gradient(#d5d9dd 1px, transparent 1px);
-        background-size: 16px 16px;
+        display: grid;
+        grid-template-columns: repeat({{ layout_config.columns }}, minmax(150px, 1fr));
+        gap: 0.5rem;
+        min-width: max-content;
     }
-    .table-position {
-        position: absolute;
-        touch-action: none;
-    }
-    .table-position .table-card {
-        box-sizing: border-box;
-        width: 100%;
+    .table-layout-cell { min-height: 140px; }
+    #tables-container .table-card {
         height: 100%;
-        min-height: 0;
+        min-height: 132px;
         margin: 0;
-        padding: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
+        padding: 1rem 0.5rem;
     }
-    .table-position .table-card h4 { margin-bottom: 0.35rem; }
-    .table-position .table-card p { margin-bottom: 0.35rem !important; }
-    .table-position .table-card.shape-rectangle { border-radius: 0; }
-    .table-position .table-card.shape-rounded { border-radius: 0.75rem; }
-    .table-position .table-card.shape-circle { border-radius: 50%; }
-    .layout-editing #tables-container { background-color: #eef5ff; }
-    .layout-editing .table-position { cursor: grab; }
-    .layout-editing .table-position:active { cursor: grabbing; }
-    .layout-editing .table-card { pointer-events: none; }
-    .layout-editing .table-position.layout-selected .table-card {
-        outline: 3px solid #0d6efd;
-        outline-offset: 3px;
-    }
-    .layout-editing .table-card:hover { transform: none; }
-    #layout-editor { display: none; }
-    .layout-editing #layout-editor { display: block; }
     @media (max-width: 991.98px) {
         .dashboard-header { align-items: flex-start; }
-        .dashboard-title { font-size: 1.45rem; white-space: nowrap; }
         .dashboard-controls { gap: 0.35rem; }
         .dashboard-actions .btn { padding: 0.375rem 0.55rem; }
     }
@@ -91,14 +58,14 @@
             padding: 0;
             font-size: 0;
         }
-        .table-position .table-card { padding: 12px 6px; }
-        .table-position .table-card h4 { font-size: 1rem; margin-bottom: 0.35rem; }
-        .table-position .table-card p { font-size: 0.85rem; }
+        #tables-container { grid-template-columns: repeat({{ layout_config.columns }}, minmax(130px, 1fr)); }
+        #tables-container .table-card { padding: 12px 6px; }
+        #tables-container .table-card h4 { font-size: 1rem; margin-bottom: 0.35rem; }
+        #tables-container .table-card p { font-size: 0.85rem; }
     }
 </style>
 
 <div class="dashboard-header mb-4">
-    <h2 class="dashboard-title"><i class="fas fa-table"></i> 테이블 현황</h2>
     <div class="dashboard-controls">
         <div class="dashboard-actions">
             <button class="btn btn-success" onclick="location.reload()" title="새로고침">
@@ -106,9 +73,6 @@
             </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#groupModal" title="그룹 관리">
                 <i class="fas fa-users"></i><span class="button-label"> 그룹 관리</span>
-            </button>
-            <button class="btn btn-outline-primary" id="layout-edit-button" onclick="toggleLayoutEditor()" title="테이블 배치 편집">
-                <i class="fas fa-pen-ruler"></i><span class="button-label"> 배치 편집</span>
             </button>
         </div>
         <div class="status-legend" aria-label="테이블 상태 범례">
@@ -120,35 +84,13 @@
     </div>
 </div>
 
-<div id="layout-editor" class="card card-body mb-3">
-    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-        <div>
-            <strong><i class="fas fa-arrows-up-down-left-right"></i> 배치 편집</strong>
-            <small class="text-muted d-block">테이블을 끌어 원하는 간격으로 배치하고, 선택한 테이블의 크기와 모양을 바꾸세요.</small>
-        </div>
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-            <label class="small mb-0">모양
-                <select id="layout-shape" class="form-select form-select-sm d-inline-block w-auto" onchange="changeSelectedTableLayout()" disabled>
-                    <option value="rounded">둥근 사각형</option>
-                    <option value="rectangle">사각형</option>
-                    <option value="circle">원형</option>
-                </select>
-            </label>
-            <label class="small mb-0">너비
-                <input id="layout-width" class="form-control form-control-sm d-inline-block" type="number" min="100" max="320" step="10" onchange="changeSelectedTableLayout()" disabled style="width: 72px;">
-            </label>
-            <label class="small mb-0">높이
-                <input id="layout-height" class="form-control form-control-sm d-inline-block" type="number" min="80" max="240" step="10" onchange="changeSelectedTableLayout()" disabled style="width: 72px;">
-            </label>
-        </div>
-    </div>
-</div>
-
 <div class="table-layout-scroll">
 <div id="tables-container">
-    {% for table in tables %}
-    <div class="table-position" data-layout-x="{{ table.layout_x }}" data-layout-y="{{ table.layout_y }}" data-layout-width="{{ table.layout_width }}" data-layout-height="{{ table.layout_height }}" data-layout-shape="{{ table.layout_shape }}" style="left: {{ table.layout_x }}%; top: {{ table.layout_y }}%; width: {{ table.layout_width }}px; height: {{ table.layout_height }}px;">
-        <div class="table-card table-{{ table.status }} shape-{{ table.layout_shape }}"
+    {% for row in table_grid %}
+    {% for table in row %}
+    <div class="table-layout-cell">
+        {% if table %}
+        <div class="table-card table-{{ table.status }}"
              data-table-id="{{ table.id }}" 
              data-table-number="{{ table.number }}"
              data-table-status="{{ table.status }}"
@@ -172,10 +114,25 @@
                 </span>
             </p>
         </div>
+        {% endif %}
     </div>
+    {% endfor %}
     {% endfor %}
 </div>
 </div>
+{% if unplaced_tables %}
+<div class="mt-3">
+    {% for table in unplaced_tables %}
+    <div class="table-card table-{{ table.status }} d-inline-block"
+         data-table-id="{{ table.id }}" data-table-number="{{ table.number }}" data-table-status="{{ table.status }}"
+         onclick="showTableDetail({{ table.id }})">
+        <h4>테이블 {{ table.number }}</h4>
+        <p class="mb-1"><i class="fas fa-chair"></i> {{ table.seats }}석</p>
+        <span class="badge {% if table.status == 'empty' %}bg-secondary{% elif table.status == 'ordered' %}bg-warning{% elif table.status == 'cooking' %}bg-danger{% elif table.status == 'paid' %}bg-info{% else %}bg-primary{% endif %} status-badge" data-table-id="{{ table.id }}" onclick="event.stopPropagation(); cycleTableStatus({{ table.id }}, '{{ table.status }}')">{{ table.get_status_display }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 <!-- 테이블 상세 모달 -->
 <div class="modal fade" id="tableModal" tabindex="-1">
@@ -232,8 +189,6 @@
 {% block scripts %}
 <script>
 let tableModal;
-let selectedLayoutTable = null;
-let layoutDragState = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     tableModal = new bootstrap.Modal(document.getElementById('tableModal'));
@@ -245,156 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('groupModal').addEventListener('show.bs.modal', function() {
         loadGroupManagement();
     });
-
-    initializeLayoutEditor();
 });
-
-function initializeLayoutEditor() {
-    const board = document.getElementById('tables-container');
-    if (!board) return;
-
-    board.querySelectorAll('.table-position').forEach(position => {
-        position.addEventListener('pointerdown', function(event) {
-            if (!document.body.classList.contains('layout-editing')) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            selectLayoutTable(position);
-            layoutDragState = {
-                position,
-                pointerId: event.pointerId,
-                offsetX: event.clientX - position.getBoundingClientRect().left,
-                offsetY: event.clientY - position.getBoundingClientRect().top,
-                moved: false,
-            };
-            position.setPointerCapture(event.pointerId);
-        });
-
-        position.addEventListener('pointermove', function(event) {
-            if (!layoutDragState || layoutDragState.pointerId !== event.pointerId) return;
-
-            const boardRect = board.getBoundingClientRect();
-            const positionRect = position.getBoundingClientRect();
-            const left = Math.min(Math.max(0, event.clientX - boardRect.left - layoutDragState.offsetX), boardRect.width - positionRect.width);
-            const top = Math.min(Math.max(0, event.clientY - boardRect.top - layoutDragState.offsetY), boardRect.height - positionRect.height);
-
-            position.dataset.layoutX = Math.round((left / boardRect.width) * 100);
-            position.dataset.layoutY = Math.round((top / boardRect.height) * 100);
-            applyTablePosition(position);
-            layoutDragState.moved = true;
-        });
-
-        position.addEventListener('pointerup', function(event) {
-            if (!layoutDragState || layoutDragState.pointerId !== event.pointerId) return;
-            if (position.hasPointerCapture(event.pointerId)) position.releasePointerCapture(event.pointerId);
-            const shouldSave = layoutDragState.moved;
-            layoutDragState = null;
-            if (shouldSave) saveTableLayout(position);
-        });
-    });
-
-    board.addEventListener('click', function(event) {
-        if (!document.body.classList.contains('layout-editing')) return;
-        const position = event.target.closest('.table-position');
-        if (position) {
-            event.preventDefault();
-            event.stopPropagation();
-            selectLayoutTable(position);
-        }
-    }, true);
-}
-
-function toggleLayoutEditor() {
-    const isEditing = document.body.classList.toggle('layout-editing');
-    const button = document.getElementById('layout-edit-button');
-    button.classList.toggle('btn-outline-primary', !isEditing);
-    button.classList.toggle('btn-primary', isEditing);
-    button.innerHTML = isEditing
-        ? '<i class="fas fa-check"></i><span class="button-label"> 배치 완료</span>'
-        : '<i class="fas fa-pen-ruler"></i><span class="button-label"> 배치 편집</span>';
-
-    if (isEditing) {
-        const firstTable = document.querySelector('.table-position');
-        if (firstTable) selectLayoutTable(firstTable);
-    } else {
-        document.querySelectorAll('.layout-selected').forEach(element => element.classList.remove('layout-selected'));
-        selectedLayoutTable = null;
-    }
-}
-
-function selectLayoutTable(position) {
-    document.querySelectorAll('.layout-selected').forEach(element => element.classList.remove('layout-selected'));
-    selectedLayoutTable = position;
-    position.classList.add('layout-selected');
-
-    const shapeInput = document.getElementById('layout-shape');
-    const widthInput = document.getElementById('layout-width');
-    const heightInput = document.getElementById('layout-height');
-    shapeInput.value = position.dataset.layoutShape;
-    widthInput.value = position.dataset.layoutWidth;
-    heightInput.value = position.dataset.layoutHeight;
-    [shapeInput, widthInput, heightInput].forEach(input => input.disabled = false);
-}
-
-function changeSelectedTableLayout() {
-    if (!selectedLayoutTable) return;
-
-    const shapeInput = document.getElementById('layout-shape');
-    const widthInput = document.getElementById('layout-width');
-    const heightInput = document.getElementById('layout-height');
-    let width = Math.min(320, Math.max(100, Number(widthInput.value) || 180));
-    let height = Math.min(240, Math.max(80, Number(heightInput.value) || 120));
-
-    if (shapeInput.value === 'circle') {
-        width = Math.min(240, width);
-        height = width;
-    }
-
-    selectedLayoutTable.dataset.layoutShape = shapeInput.value;
-    selectedLayoutTable.dataset.layoutWidth = Math.round(width);
-    selectedLayoutTable.dataset.layoutHeight = Math.round(height);
-    widthInput.value = Math.round(width);
-    heightInput.value = Math.round(height);
-    applyTablePosition(selectedLayoutTable);
-    saveTableLayout(selectedLayoutTable);
-}
-
-function applyTablePosition(position) {
-    position.style.left = `${position.dataset.layoutX}%`;
-    position.style.top = `${position.dataset.layoutY}%`;
-    position.style.width = `${position.dataset.layoutWidth}px`;
-    position.style.height = `${position.dataset.layoutHeight}px`;
-    const card = position.querySelector('.table-card');
-    card.classList.remove('shape-rounded', 'shape-rectangle', 'shape-circle');
-    card.classList.add(`shape-${position.dataset.layoutShape}`);
-}
-
-function saveTableLayout(position) {
-    const tableCard = position.querySelector('.table-card');
-    const payload = {
-        layout_x: Number(position.dataset.layoutX),
-        layout_y: Number(position.dataset.layoutY),
-        layout_width: Number(position.dataset.layoutWidth),
-        layout_height: Number(position.dataset.layoutHeight),
-        layout_shape: position.dataset.layoutShape,
-    };
-
-    fetch(`/api/layout/${tableCard.dataset.tableId}/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    })
-    .then(response => response.json().then(data => ({ ok: response.ok, data })))
-    .then(({ ok, data }) => {
-        if (!ok || !data.success) {
-            alert(data.error || '테이블 배치를 저장하지 못했습니다.');
-        }
-    })
-    .catch(error => {
-        console.error('Error saving table layout:', error);
-        alert('테이블 배치를 저장하지 못했습니다.');
-    });
-}
 
 function updateTableStatus() {
     fetch('/api/status/')
@@ -457,7 +263,8 @@ function showTableDetail(tableId) {
     const tableCard = document.querySelector(`.table-card[data-table-id="${tableId}"]`);
     const isEmptyTable = tableCard && tableCard.dataset.tableStatus === 'empty';
     const tableNumber = tableCard ? tableCard.dataset.tableNumber : '';
-    const statusLabel = tableCard ? tableCard.querySelector('.status-badge').textContent.trim() : '';
+    const statusBadge = tableCard?.querySelector('.status-badge');
+    const statusLabel = statusBadge ? statusBadge.textContent.trim() : '';
 
     fetch(`/detail/${tableId}/`)
         .then(response => response.text())
@@ -714,7 +521,6 @@ function submitModalOrder() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('주문이 완료되었습니다!');
             tableModal.hide();
             updateTableStatus();
         } else {

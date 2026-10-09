@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    <li><a href="{% url 'admin:tables_table_layout_editor' %}">테이블 배치 편집</a></li>
+    {{ block.super }}
+{% endblock %}

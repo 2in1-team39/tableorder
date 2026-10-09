@@ -3,13 +3,30 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.db import transaction
 import json
-from .models import Table
+from .models import Table, TableLayoutConfig
 from orders.models import Order
 
 def table_dashboard(request):
     tables = Table.objects.all().order_by('number')
-    return render(request, 'tables/dashboard.html', {'tables': tables})
+    layout_config, _ = TableLayoutConfig.objects.get_or_create()
+    table_by_cell = {
+        (table.layout_row, table.layout_column): table
+        for table in tables
+        if table.layout_row and table.layout_column
+    }
+    table_grid = [
+        [table_by_cell.get((row, column)) for column in range(1, layout_config.columns + 1)]
+        for row in range(1, layout_config.rows + 1)
+    ]
+    unplaced_tables = [table for table in tables if not table.layout_row or not table.layout_column]
+    return render(request, 'tables/dashboard.html', {
+        'tables': tables,
+        'layout_config': layout_config,
+        'table_grid': table_grid,
+        'unplaced_tables': unplaced_tables,
+    })
 
 def table_status_api(request):
     tables = Table.objects.all().order_by('number')
@@ -26,11 +43,8 @@ def table_status_api(request):
             'status': table.status,
             'seats': table.seats,
             'memo': table.memo,
-            'layout_x': table.layout_x,
-            'layout_y': table.layout_y,
-            'layout_width': table.layout_width,
-            'layout_height': table.layout_height,
-            'layout_shape': table.layout_shape,
+            'layout_row': table.layout_row,
+            'layout_column': table.layout_column,
             'group_name': group.name if group else None,
             'group_id': group.id if group else None
         })
@@ -41,13 +55,38 @@ def table_status_api(request):
 @require_http_methods(["POST"])
 def update_table_status(request, table_id):
     table = get_object_or_404(Table, id=table_id)
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': '요청 형식이 올바르지 않습니다.'}, status=400)
     new_status = data.get('status')
     
     if new_status in dict(Table.STATUS_CHOICES):
-        table.status = new_status
-        table.save()
-        return JsonResponse({'success': True, 'status': table.status})
+        with transaction.atomic():
+            if new_status == 'paid':
+                # 현황 화면에서 결제 완료를 선택하는 경우도 실제 카드 결제로 처리한다.
+                # 미결제 주문을 모두 결제 완료로 전환해야 주문이 테이블에 남지 않고 매출에도 집계된다.
+                orders = Order.objects.filter(table=table).exclude(status='paid')
+                paid_at = timezone.now()
+                update_values = {
+                    'status': 'paid',
+                    'payment_method': '카드',
+                    'paid_at': paid_at,
+                    'updated_at': paid_at,
+                }
+                group = table.get_group()
+                if group:
+                    update_values['group_name'] = group.name
+                orders.update(**update_values)
+
+            table.status = new_status
+            table.save(update_fields=['status', 'updated_at'])
+
+        return JsonResponse({
+            'success': True,
+            'status': table.status,
+            'payment_method': '카드' if new_status == 'paid' else '',
+        })
     
     return JsonResponse({'success': False, 'error': 'Invalid status'})
 
@@ -72,41 +111,6 @@ def update_table_memo(request, table_id):
     table.memo = memo
     table.save(update_fields=['memo', 'updated_at'])
     return JsonResponse({'success': True, 'memo': table.memo})
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def update_table_layout(request, table_id):
-    """테이블 현황 화면에서 편집한 위치와 모양을 저장한다."""
-    table = get_object_or_404(Table, id=table_id)
-
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': '요청 형식이 올바르지 않습니다.'}, status=400)
-
-    fields = {
-        'layout_x': (0, 100),
-        'layout_y': (0, 100),
-        'layout_width': (100, 320),
-        'layout_height': (80, 240),
-    }
-    updates = {}
-    for field, (minimum, maximum) in fields.items():
-        value = data.get(field)
-        if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
-            return JsonResponse({'success': False, 'error': '배치 값이 올바르지 않습니다.'}, status=400)
-        updates[field] = value
-
-    layout_shape = data.get('layout_shape')
-    valid_shapes = dict(Table.TABLE_SHAPE_CHOICES)
-    if layout_shape not in valid_shapes:
-        return JsonResponse({'success': False, 'error': '테이블 모양이 올바르지 않습니다.'}, status=400)
-
-    for field, value in updates.items():
-        setattr(table, field, value)
-    table.layout_shape = layout_shape
-    table.save(update_fields=[*updates.keys(), 'layout_shape', 'updated_at'])
-    return JsonResponse({'success': True, **updates, 'layout_shape': table.layout_shape})
 
 def table_detail(request, table_id):
     table = get_object_or_404(Table, id=table_id)
